@@ -210,6 +210,25 @@
 						<span class="online__ping" id="online-ping" data-q="wait" title="Реальный пинг до сервера">—</span>
 					</div>
 
+					<div class="online__modes" role="tablist" aria-label="Способ подключения">
+						<button class="online__mode online__mode--active" id="online-mode-random" type="button" role="tab" aria-selected="true">Случайная игра</button>
+						<button class="online__mode" id="online-mode-code" type="button" role="tab" aria-selected="false">Комната по коду</button>
+					</div>
+
+					<div id="online-code-box" class="online__code-box" hidden>
+						<div id="online-code-setup" class="online__code-setup">
+							<button class="button button--primary" id="online-create-room" type="button">Создать комнату</button>
+							<span class="online__or">или</span>
+							<input id="online-room-code" class="online__input online__input--code" type="text" maxlength="6" placeholder="КОД" autocomplete="off" spellcheck="false" aria-label="Код комнаты" />
+							<button class="button" id="online-join-room" type="button">Войти</button>
+						</div>
+						<div id="online-code-card" class="online__code-card" hidden>
+							<span class="online__code-label">Код комнаты</span>
+							<strong id="online-code-value" class="online__code-value">------</strong>
+							<button class="button button--ghost online__copy" id="online-copy-code" type="button">Копировать</button>
+						</div>
+					</div>
+
 					<div class="online__stage">
 						<div class="online__loader" id="online-loader" data-mode="idle">
 							<div class="online__ring" id="online-ring"><span id="online-ring-label">25</span></div>
@@ -228,6 +247,7 @@
 
 					<div class="menu__row online__actions">
 						<button class="button button--primary" id="online-start" type="button">Начать игру онлайн</button>
+						<button class="button button--primary" id="online-room-start" type="button" hidden>Запустить комнату</button>
 						<button class="button button--ghost" id="online-cancel" type="button" hidden>Отмена</button>
 						<button class="button button--ghost" id="online-solo" type="button" hidden>Играть одному</button>
 						<button class="button" id="online-back" type="button">Назад</button>

@@ -11,6 +11,7 @@
  */
 import { randomId } from "./realtime.js";
 export const LOBBY_NAME = "school3d-lobby-v1";
+export const CODE_ROOM_PREFIX = "school3d-code-v1-";
 export const MAX_PLAYERS = 5;
 export const MIN_PLAYERS = 2;
 export const SEARCH_SECONDS = 25;
@@ -35,6 +36,8 @@ export class OnlineSession {
     tick = 0;
     lastCountdown = -1;
     alonePinged = false;
+    codeRoom = "";
+    codeHost = false;
     constructor(client, name, events = {}) {
         this.client = client;
         this.events = events;
@@ -55,6 +58,12 @@ export class OnlineSession {
     get isHost() {
         return this.match ? this.match.host === this.id : false;
     }
+    get isCodeRoom() {
+        return this.codeRoom.length > 0;
+    }
+    get isCodeHost() {
+        return this.isCodeRoom && this.codeHost;
+    }
     setPhase(phase, detail) {
         if (this.phase === phase && !detail)
             return;
@@ -62,14 +71,14 @@ export class OnlineSession {
         this.events.onPhase?.(phase, detail);
     }
     /** Подключиться и зайти в лобби. */
-    async enter() {
+    async enter(lobbyName = LOBBY_NAME) {
         this.setPhase("connecting");
         const ok = await this.client.connect();
         if (!ok) {
             this.setPhase("idle", this.client.lastError || "Не вышло подключиться к серверу");
             return false;
         }
-        const lobby = this.client.channel(LOBBY_NAME);
+        const lobby = this.client.channel(lobbyName);
         this.lobby = lobby;
         lobby.onPresence(() => this.readPresence());
         lobby.on("match", (payload) => this.handleMatch(payload));
@@ -79,6 +88,14 @@ export class OnlineSession {
         // Просим остальных переслать своё presence — быстрее собирается список.
         setTimeout(() => lobby.send("hi", { id: this.id }), 250);
         return true;
+    }
+    async enterCodeRoom(code, asHost) {
+        this.codeRoom = code;
+        this.codeHost = asHost;
+        const ok = await this.enter(`${CODE_ROOM_PREFIX}${code}`);
+        if (ok)
+            this.startSearch();
+        return ok;
     }
     setName(raw) {
         this.name = cleanName(raw);
@@ -142,7 +159,24 @@ export class OnlineSession {
             return;
         this.tick = 0;
         this.publish();
+        if (this.isCodeRoom)
+            return;
         this.evaluate(elapsed);
+    }
+    startCodeMatch() {
+        if (!this.isCodeHost || this.phase !== "searching")
+            return false;
+        const group = this.searchers.slice(0, MAX_PLAYERS);
+        if (group.length < MIN_PLAYERS)
+            return false;
+        const info = {
+            room: `school3d-room-${this.codeRoom}-${randomId()}`,
+            host: this.id,
+            players: group.map((member, index) => ({ id: member.id, name: member.name, index })),
+            startIn: 3200,
+        };
+        this.lobby?.send("match", info);
+        return true;
     }
     evaluate(elapsed) {
         const searchers = this.searchers;
@@ -243,6 +277,8 @@ export class OnlineSession {
             this.lobby.leave();
             this.lobby = null;
         }
+        this.codeRoom = "";
+        this.codeHost = false;
         this.setPhase("idle");
         this.client.close();
     }

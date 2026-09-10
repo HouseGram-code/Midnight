@@ -1,39 +1,41 @@
-/**
- * Панель «Онлайн — бета» в главном меню.
- *
- * Шаги: имя → подключение (анимация загрузки) → поиск игроков (25 секунд,
- * максимум 5, хватит и двоих) → «Матч найден» → игра.
- * Пинг настоящий: RTT хартбита до Supabase Realtime.
- */
+/** Панель онлайна: случайный подбор или приватная комната по коду. */
 import { isMockMode, LoopbackClient, RealtimeClient } from "../net/realtime.js";
-import { MAX_PLAYERS, OnlineSession, SEARCH_SECONDS } from "../net/session.js";
+import { MAX_PLAYERS, MIN_PLAYERS, OnlineSession, SEARCH_SECONDS } from "../net/session.js";
 import { skinFor } from "../net/remote.js";
 import { requireElement, setHidden, setText } from "./dom.js";
 const NAME_KEY = "school3d.name.v1";
-function storedName() {
-    try {
-        return localStorage.getItem(NAME_KEY) ?? "";
-    }
-    catch {
-        return "";
-    }
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function storedName() { try {
+    return localStorage.getItem(NAME_KEY) ?? "";
 }
-function rememberName(name) {
-    try {
-        localStorage.setItem(NAME_KEY, name);
-    }
-    catch {
-        // Приватный режим — не страшно.
-    }
+catch {
+    return "";
+} }
+function rememberName(name) { try {
+    localStorage.setItem(NAME_KEY, name);
 }
+catch { /* ignore */ } }
+function roomCode() {
+    const bytes = new Uint8Array(6);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map((value) => CODE_ALPHABET[value % CODE_ALPHABET.length]).join("");
+}
+function cleanCode(raw) { return raw.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 6); }
 export class OnlinePanel {
     callbacks;
-    root = requireElement("menu-online");
     nameInput = requireElement("online-name");
     startButton = requireElement("online-start");
+    roomStartButton = requireElement("online-room-start");
     cancelButton = requireElement("online-cancel");
     soloButton = requireElement("online-solo");
-    backButton = requireElement("online-back");
+    randomModeButton = requireElement("online-mode-random");
+    codeModeButton = requireElement("online-mode-code");
+    codeBox = requireElement("online-code-box");
+    codeSetup = requireElement("online-code-setup");
+    codeCard = requireElement("online-code-card");
+    roomCodeInput = requireElement("online-room-code");
+    codeValue = requireElement("online-code-value");
+    copyCodeButton = requireElement("online-copy-code");
     statusEl = requireElement("online-status");
     hintEl = requireElement("online-hint");
     pingEl = requireElement("online-ping");
@@ -44,155 +46,164 @@ export class OnlinePanel {
     searchBox = requireElement("online-search");
     session = null;
     client = null;
-    /** ?netmock=1 — локальная сеть без интернета. */
     mock = isMockMode();
+    mode = "random";
+    activeCode = "";
+    codeHost = false;
     raf = 0;
     lastFrame = 0;
-    visible = false;
     startAt = 0;
     pending = null;
     ringValue = 0;
     constructor(callbacks) {
         this.callbacks = callbacks;
         this.nameInput.value = storedName();
-        this.nameInput.addEventListener("keydown", (event) => {
-            event.stopPropagation();
-            if (event.key === "Enter")
-                this.startSearch();
-        });
+        this.nameInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter")
+            this.startSearch(); });
         this.nameInput.addEventListener("keyup", (event) => event.stopPropagation());
-        this.nameInput.addEventListener("input", () => {
-            const name = this.nameInput.value.trim();
-            rememberName(name);
-            this.session?.setName(name);
-            this.refreshButtons();
-        });
-        this.startButton.addEventListener("click", () => {
-            this.callbacks.onClick();
-            this.startSearch();
-        });
+        this.nameInput.addEventListener("input", () => { const name = this.nameInput.value.trim(); rememberName(name); this.session?.setName(name); this.refreshButtons(); });
+        this.roomCodeInput.addEventListener("input", () => { this.roomCodeInput.value = cleanCode(this.roomCodeInput.value); });
+        this.roomCodeInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter")
+            void this.joinCodeRoom(); });
+        this.randomModeButton.addEventListener("click", () => this.switchMode("random"));
+        this.codeModeButton.addEventListener("click", () => this.switchMode("code"));
+        requireElement("online-create-room").addEventListener("click", () => void this.createCodeRoom());
+        requireElement("online-join-room").addEventListener("click", () => void this.joinCodeRoom());
+        this.copyCodeButton.addEventListener("click", () => void this.copyCode());
+        this.roomStartButton.addEventListener("click", () => { this.callbacks.onClick(); if (!this.session?.startCodeMatch())
+            this.setStatus("Нужен ещё игрок", "Друг должен войти по коду комнаты."); });
+        this.startButton.addEventListener("click", () => { this.callbacks.onClick(); this.startSearch(); });
         this.cancelButton.addEventListener("click", () => {
             this.callbacks.onClick();
-            this.session?.cancelSearch();
-            this.setStatus("Поиск отменён", "Можно попробовать снова в любой момент.");
-            this.refreshButtons();
-        });
-        this.soloButton.addEventListener("click", () => {
-            this.callbacks.onClick();
-            this.session?.cancelSearch();
-            this.callbacks.onSolo();
-        });
-        this.backButton.addEventListener("click", () => {
-            this.callbacks.onClick();
-            this.session?.cancelSearch();
-            this.callbacks.onBack();
-        });
-    }
-    get isSearching() {
-        return this.session?.phase === "searching";
-    }
-    /** Открыть панель и сразу начать подключение. */
-    open() {
-        this.visible = true;
-        setHidden(this.soloButton, true);
-        this.setStatus(this.mock ? "Локальная сеть (netmock)…" : "Подключаемся к серверу…", this.mock
-            ? "Видны только вкладки этого браузера и профиля."
-            : "Первый вход занимает пару секунд.");
-        this.loader.dataset.mode = "connect";
-        this.refreshButtons();
-        void this.ensureSession();
-        this.startLoop();
-    }
-    close() {
-        this.visible = false;
-        this.stopLoop();
-    }
-    /** После выхода из матча вернуть панель в исходное состояние. */
-    reset() {
-        this.pending = null;
-        this.startAt = 0;
-        this.loader.dataset.mode = "idle";
-        this.rosterEl.replaceChildren();
-        setHidden(this.searchBox, true);
-        setHidden(this.soloButton, true);
-        this.setStatus("Готовы к следующей игре", "Нажмите «Начать игру онлайн».");
-        this.refreshButtons();
-    }
-    async ensureSession() {
-        if (this.session) {
-            if (this.session.phase === "idle") {
-                this.loader.dataset.mode = "connect";
-                this.setStatus("Подключаемся к серверу…", "Повторяем попытку соединения.");
-                const ok = await this.session.enter();
-                if (!ok) {
-                    this.loader.dataset.mode = "error";
-                    this.setStatus("Сервер не отвечает", `${this.client?.lastError || "Не вышло подключиться"}. Можно попробовать ещё раз.`);
-                }
-                else {
-                    this.loader.dataset.mode = "idle";
-                    this.setStatus("Сеть на связи", "Придумайте имя и жмите «Начать игру онлайн».");
-                }
+            if (this.mode === "code") {
+                this.leaveSession();
+                this.showCodeSetup();
+                this.setStatus("Комната закрыта", "Можно создать новую или войти по коду.");
+            }
+            else {
+                this.session?.cancelSearch();
+                this.setStatus("Поиск отменён", "Можно попробовать снова.");
             }
             this.refreshButtons();
-            return;
+        });
+        this.soloButton.addEventListener("click", () => { this.callbacks.onClick(); this.session?.cancelSearch(); this.callbacks.onSolo(); });
+        requireElement("online-back").addEventListener("click", () => { this.callbacks.onClick(); this.leaveSession(); this.callbacks.onBack(); });
+    }
+    get isSearching() { return this.session?.phase === "searching"; }
+    open() { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop(); void this.ensureRandomSession(); }
+    close() { this.stopLoop(); }
+    reset() { this.leaveSession(); this.pending = null; this.startAt = 0; this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren(); this.showCodeSetup(); this.setStatus("Готовы к следующей игре", "Выберите случайную игру или комнату по коду."); this.refreshButtons(); }
+    switchMode(mode, click = true) {
+        if (click)
+            this.callbacks.onClick();
+        if (this.mode !== mode)
+            this.leaveSession();
+        this.mode = mode;
+        this.randomModeButton.classList.toggle("online__mode--active", mode === "random");
+        this.codeModeButton.classList.toggle("online__mode--active", mode === "code");
+        this.randomModeButton.setAttribute("aria-selected", String(mode === "random"));
+        this.codeModeButton.setAttribute("aria-selected", String(mode === "code"));
+        setHidden(this.codeBox, mode !== "code");
+        setHidden(this.startButton, mode !== "random");
+        setHidden(this.roomStartButton, true);
+        setHidden(this.cancelButton, true);
+        setHidden(this.soloButton, true);
+        setHidden(this.searchBox, true);
+        this.loader.dataset.mode = "idle";
+        this.rosterEl.replaceChildren();
+        if (mode === "random") {
+            this.setStatus("Подключаемся к серверу…", "Затем можно искать случайных игроков.");
+            void this.ensureRandomSession();
         }
-        const client = this.mock ? new LoopbackClient(35) : new RealtimeClient();
-        this.client = client;
-        const session = new OnlineSession(client, this.nameInput.value.trim() || "Игрок", {
-            onPhase: (phase, detail) => this.onPhase(phase, detail),
+        else {
+            this.showCodeSetup();
+            this.setStatus("Комната по коду", "Создайте комнату или введите код друга.");
+        }
+        this.refreshButtons();
+    }
+    makeClient() { return this.mock ? new LoopbackClient(35) : new RealtimeClient(); }
+    makeSession(client) {
+        return new OnlineSession(client, this.nameInput.value.trim() || "Игрок", {
+            onPhase: (phase, detail) => { if (phase === "connecting")
+                this.loader.dataset.mode = "connect"; if (detail)
+                this.setStatus(detail, ""); this.refreshButtons(); },
             onRoster: (members) => this.renderRoster(members),
             onCountdown: (left, found) => this.onCountdown(left, found),
-            onAlone: () => {
+            onAlone: () => { if (this.mode === "random") {
                 setHidden(this.soloButton, false);
-                this.setStatus("Пока никого нет…", this.mock
-                    ? "netmock видит только вкладки одного браузера и профиля. Для второго аккаунта или другого компьютера открой адрес без ?netmock=1."
-                    : "Продолжаем искать. Можно начать одному или позвать друга — вам нужен один и тот же сайт.");
-            },
+                this.setStatus("Пока никого нет…", "Продолжаем искать. Можно начать одному или позвать друга.");
+            } },
             onMatch: (info) => this.onMatchFound(info),
         });
-        this.session = session;
-        const ok = await session.enter();
-        if (!ok) {
-            this.loader.dataset.mode = "error";
-            const reason = client.lastError;
-            this.setStatus("Сервер не отвечает", reason
-                ? `${reason}. Офлайн-игра работает всегда.`
-                : "Проверьте интернет и попробуйте снова — офлайн-игра работает всегда.");
+    }
+    async ensureRandomSession() {
+        if (this.mode !== "random")
+            return;
+        if (!this.session) {
+            this.client = this.makeClient();
+            this.session = this.makeSession(this.client);
+        }
+        if (this.session.phase !== "idle") {
             this.refreshButtons();
             return;
         }
+        this.loader.dataset.mode = "connect";
+        if (!(await this.session.enter())) {
+            this.showConnectionError();
+            return;
+        }
         this.loader.dataset.mode = "idle";
-        if (this.mock) {
-            const linked = client.transport === "broadcast" || client.transport === "storage";
-            this.setStatus(linked ? "Локальная сеть на связи" : "Локальная сеть только в этом окне", linked
-                ? "Открой вторую вкладку с тем же адресом — она появится в списке. Разные профили браузера так не видны."
-                : "Браузер не дал связать вкладки. Для игры с другом открой адрес без ?netmock=1.");
+        this.setStatus("Сеть на связи", "Введите имя и начните случайный поиск.");
+        this.refreshButtons();
+    }
+    async createCodeRoom() { if (this.validName())
+        await this.enterCodeRoom(roomCode(), true); }
+    async joinCodeRoom() {
+        if (!this.validName())
+            return;
+        const code = cleanCode(this.roomCodeInput.value);
+        if (code.length !== 6) {
+            this.setStatus("Неверный код", "Введите все 6 символов кода комнаты.");
+            this.roomCodeInput.focus();
+            return;
         }
-        else {
-            this.setStatus("Сеть на связи", "Придумайте имя и жмите «Начать игру онлайн».");
+        await this.enterCodeRoom(code, false);
+    }
+    async enterCodeRoom(code, asHost) {
+        this.callbacks.onClick();
+        this.leaveSession();
+        this.activeCode = code;
+        this.codeHost = asHost;
+        this.client = this.makeClient();
+        this.session = this.makeSession(this.client);
+        this.loader.dataset.mode = "connect";
+        this.showCodeCard(code);
+        this.setStatus(asHost ? "Создаём комнату…" : "Входим в комнату…", `Код ${code}`);
+        if (!(await this.session.enterCodeRoom(code, asHost))) {
+            this.showConnectionError();
+            this.showCodeSetup();
+            return;
         }
+        this.loader.dataset.mode = "search";
+        setHidden(this.searchBox, false);
+        setHidden(this.cancelButton, false);
+        setHidden(this.roomStartButton, !asHost);
+        this.setStatus(asHost ? `Комната ${code} создана` : `Вы в комнате ${code}`, asHost ? "Отправьте код друзьям. Когда они войдут, запустите игру." : "Ждём, когда создатель комнаты запустит игру.");
         this.refreshButtons();
     }
     startSearch() {
-        const name = this.nameInput.value.trim();
-        if (name.length < 2) {
-            this.setStatus("Нужно имя", "Минимум 2 символа — оно будет висеть над вашим игроком.");
-            this.nameInput.focus();
+        if (this.mode !== "random" || !this.validName())
             return;
-        }
-        rememberName(name);
         if (!this.session || this.session.phase === "idle") {
-            void this.ensureSession().then(() => {
-                if (this.session?.phase === "lobby")
-                    this.startSearch();
-            });
+            void this.ensureRandomSession().then(() => { if (this.session?.phase === "lobby")
+                this.startSearch(); });
             return;
         }
         if (this.session.phase === "connecting") {
             this.setStatus("Ещё подключаемся…", "Секундочку.");
             return;
         }
-        this.session.setName(name);
+        this.session.setName(this.nameInput.value.trim());
         this.session.startSearch();
         this.loader.dataset.mode = "search";
         setHidden(this.searchBox, false);
@@ -200,14 +211,19 @@ export class OnlinePanel {
         this.setStatus("Собираем игроков…", `Максимум ${MAX_PLAYERS}. Начнём раньше, если комната заполнится.`);
         this.refreshButtons();
     }
-    onPhase(phase, detail) {
-        if (phase === "connecting")
-            this.loader.dataset.mode = "connect";
-        if (detail)
-            this.setStatus(detail, "");
-        this.refreshButtons();
-    }
+    validName() { const name = this.nameInput.value.trim(); if (name.length >= 2) {
+        rememberName(name);
+        return true;
+    } ; this.setStatus("Нужно имя", "Минимум 2 символа."); this.nameInput.focus(); return false; }
+    showConnectionError() { this.loader.dataset.mode = "error"; this.setStatus("Сервер не отвечает", `${this.client?.lastError || "Не вышло подключиться"}. Попробуйте ещё раз.`); this.refreshButtons(); }
     onCountdown(left, found) {
+        if (this.mode === "code") {
+            this.ringValue = Math.min(1, found / MAX_PLAYERS);
+            setText(this.ringLabel, `${found}`);
+            this.setStatus(`Комната ${this.activeCode} · игроков: ${found}`, this.codeHost ? (found >= MIN_PLAYERS ? "Можно запускать игру." : "Отправьте код другу и дождитесь подключения.") : "Ждём запуска создателем комнаты.");
+            this.refreshButtons();
+            return;
+        }
         this.ringValue = 1 - left / SEARCH_SECONDS;
         setText(this.ringLabel, `${left}`);
         const word = found === 1 ? "игрок" : found < 5 ? "игрока" : "игроков";
@@ -216,12 +232,12 @@ export class OnlinePanel {
     onMatchFound(info) {
         this.pending = info;
         this.loader.dataset.mode = "found";
-        // Половина пинга — грубая, но честная поправка на задержку сети.
         const lag = Math.min(400, Math.round((this.session?.ping ?? 0) / 2));
         this.startAt = performance.now() + Math.max(900, info.startIn - lag);
         this.setStatus("Матч найден!", `Игроков: ${info.players.length}. Заходим в школу…`);
         this.renderMatchRoster(info);
         setHidden(this.soloButton, true);
+        setHidden(this.roomStartButton, true);
         this.refreshButtons();
     }
     renderRoster(members) {
@@ -229,62 +245,36 @@ export class OnlinePanel {
             return;
         const searching = members.filter((member) => member.searching && !member.playing);
         this.rosterEl.replaceChildren();
-        searching.slice(0, MAX_PLAYERS).forEach((member, index) => {
-            this.rosterEl.append(this.rosterRow(member.name, index, member.id === this.session?.id));
-        });
+        searching.slice(0, MAX_PLAYERS).forEach((member, index) => this.rosterEl.append(this.rosterRow(member.name, index, member.id === this.session?.id)));
         for (let i = searching.length; i < MAX_PLAYERS; i += 1) {
             const empty = document.createElement("div");
             empty.className = "online-slot online-slot--empty";
             empty.textContent = "свободно";
             this.rosterEl.append(empty);
         }
+        this.refreshButtons();
     }
-    renderMatchRoster(info) {
-        this.rosterEl.replaceChildren();
-        for (const player of info.players) {
-            this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id));
-        }
+    renderMatchRoster(info) { this.rosterEl.replaceChildren(); for (const player of info.players)
+        this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id)); }
+    rosterRow(name, index, self) { const row = document.createElement("div"); row.className = self ? "online-slot online-slot--me" : "online-slot"; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot, label); return row; }
+    showCodeSetup() { this.activeCode = ""; this.codeHost = false; setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true); }
+    showCodeCard(code) { setText(this.codeValue, code); setHidden(this.codeSetup, true); setHidden(this.codeCard, false); }
+    async copyCode() { if (!this.activeCode)
+        return; try {
+        await navigator.clipboard.writeText(this.activeCode);
+        setText(this.copyCodeButton, "Скопировано");
+        setTimeout(() => setText(this.copyCodeButton, "Копировать"), 1400);
     }
-    rosterRow(name, index, self) {
-        const row = document.createElement("div");
-        row.className = self ? "online-slot online-slot--me" : "online-slot";
-        const dot = document.createElement("i");
-        dot.style.background = skinFor(index).tag;
-        const label = document.createElement("span");
-        label.textContent = self ? `${name} (вы)` : name;
-        row.append(dot, label);
-        return row;
-    }
-    setStatus(title, hint) {
-        setText(this.statusEl, title);
-        setText(this.hintEl, hint);
-    }
-    refreshButtons() {
-        const phase = this.session?.phase ?? "idle";
-        const searching = phase === "searching";
-        const busy = phase === "connecting" || phase === "found" || phase === "match";
-        this.startButton.disabled = searching || busy;
-        setHidden(this.cancelButton, !searching);
-        setHidden(this.searchBox, !searching && phase !== "found");
-    }
-    startLoop() {
-        if (this.raf)
-            return;
-        this.lastFrame = performance.now();
-        const step = (now) => {
-            this.raf = requestAnimationFrame(step);
-            const dt = Math.min(0.25, (now - this.lastFrame) / 1000);
-            this.lastFrame = now;
-            this.frame(dt, now);
-        };
-        this.raf = requestAnimationFrame(step);
-    }
-    stopLoop() {
-        if (!this.raf)
-            return;
-        cancelAnimationFrame(this.raf);
-        this.raf = 0;
-    }
+    catch {
+        this.setStatus(`Код комнаты: ${this.activeCode}`, "Выделите код и отправьте его друзьям.");
+    } }
+    setStatus(title, hint) { setText(this.statusEl, title); setText(this.hintEl, hint); }
+    refreshButtons() { const phase = this.session?.phase ?? "idle"; const searching = phase === "searching"; const busy = phase === "connecting" || phase === "found" || phase === "match"; this.startButton.disabled = this.mode !== "random" || searching || busy; this.roomStartButton.disabled = !this.codeHost || (this.session?.searchers.length ?? 0) < MIN_PLAYERS || phase !== "searching"; if (this.mode === "random")
+        setHidden(this.cancelButton, !searching); }
+    startLoop() { if (this.raf)
+        return; this.lastFrame = performance.now(); const step = (now) => { this.raf = requestAnimationFrame(step); const dt = Math.min(0.25, (now - this.lastFrame) / 1000); this.lastFrame = now; this.frame(dt, now); }; this.raf = requestAnimationFrame(step); }
+    stopLoop() { if (!this.raf)
+        return; cancelAnimationFrame(this.raf); this.raf = 0; }
     frame(dt, now) {
         const session = this.session;
         if (!session)
@@ -293,9 +283,8 @@ export class OnlinePanel {
         const ping = session.ping;
         setText(this.pingEl, ping > 0 ? `${ping} мс` : "—");
         this.pingEl.dataset.q = ping <= 0 ? "wait" : ping < 90 ? "good" : ping < 200 ? "ok" : "bad";
-        if (session.phase === "searching") {
+        if (session.phase === "searching")
             this.ring.style.setProperty("--fill", `${Math.round(this.ringValue * 360)}deg`);
-        }
         else if (this.pending) {
             const left = Math.max(0, this.startAt - now);
             setText(this.ringLabel, `${Math.ceil(left / 1000)}`);
@@ -308,12 +297,7 @@ export class OnlinePanel {
             }
         }
     }
-    /** Полное отключение (например, при закрытии вкладки). */
-    dispose() {
-        this.stopLoop();
-        this.session?.leave();
-        this.session = null;
-        this.client = null;
-    }
+    leaveSession() { this.session?.leave(); this.session = null; this.client = null; this.pending = null; }
+    dispose() { this.stopLoop(); this.leaveSession(); }
 }
 //# sourceMappingURL=online.js.map

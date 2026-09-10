@@ -14,6 +14,7 @@ import { randomId } from "./realtime.js"
 import type { NetChannel, NetClient, NetPayload } from "./realtime.js"
 
 export const LOBBY_NAME = "school3d-lobby-v1"
+export const CODE_ROOM_PREFIX = "school3d-code-v1-"
 export const MAX_PLAYERS = 5
 export const MIN_PLAYERS = 2
 export const SEARCH_SECONDS = 25
@@ -79,6 +80,8 @@ export class OnlineSession {
 	private tick = 0
 	private lastCountdown = -1
 	private alonePinged = false
+	private codeRoom = ""
+	private codeHost = false
 
 	constructor(
 		readonly client: NetClient,
@@ -107,6 +110,14 @@ export class OnlineSession {
 		return this.match ? this.match.host === this.id : false
 	}
 
+	get isCodeRoom(): boolean {
+		return this.codeRoom.length > 0
+	}
+
+	get isCodeHost(): boolean {
+		return this.isCodeRoom && this.codeHost
+	}
+
 	private setPhase(phase: SessionPhase, detail?: string): void {
 		if (this.phase === phase && !detail) return
 		this.phase = phase
@@ -114,14 +125,14 @@ export class OnlineSession {
 	}
 
 	/** Подключиться и зайти в лобби. */
-	async enter(): Promise<boolean> {
+	async enter(lobbyName = LOBBY_NAME): Promise<boolean> {
 		this.setPhase("connecting")
 		const ok = await this.client.connect()
 		if (!ok) {
 			this.setPhase("idle", this.client.lastError || "Не вышло подключиться к серверу")
 			return false
 		}
-		const lobby = this.client.channel(LOBBY_NAME)
+		const lobby = this.client.channel(lobbyName)
 		this.lobby = lobby
 		lobby.onPresence(() => this.readPresence())
 		lobby.on("match", (payload) => this.handleMatch(payload))
@@ -131,6 +142,14 @@ export class OnlineSession {
 		// Просим остальных переслать своё presence — быстрее собирается список.
 		setTimeout(() => lobby.send("hi", { id: this.id }), 250)
 		return true
+	}
+
+	async enterCodeRoom(code: string, asHost: boolean): Promise<boolean> {
+		this.codeRoom = code
+		this.codeHost = asHost
+		const ok = await this.enter(`${CODE_ROOM_PREFIX}${code}`)
+		if (ok) this.startSearch()
+		return ok
 	}
 
 	setName(raw: string): void {
@@ -195,7 +214,22 @@ export class OnlineSession {
 		if (this.tick < 0.4) return
 		this.tick = 0
 		this.publish()
+		if (this.isCodeRoom) return
 		this.evaluate(elapsed)
+	}
+
+	startCodeMatch(): boolean {
+		if (!this.isCodeHost || this.phase !== "searching") return false
+		const group = this.searchers.slice(0, MAX_PLAYERS)
+		if (group.length < MIN_PLAYERS) return false
+		const info: MatchInfo = {
+			room: `school3d-room-${this.codeRoom}-${randomId()}`,
+			host: this.id,
+			players: group.map((member, index) => ({ id: member.id, name: member.name, index })),
+			startIn: 3200,
+		}
+		this.lobby?.send("match", info as unknown as NetPayload)
+		return true
 	}
 
 	private evaluate(elapsed: number): void {
@@ -297,6 +331,8 @@ export class OnlineSession {
 			this.lobby.leave()
 			this.lobby = null
 		}
+		this.codeRoom = ""
+		this.codeHost = false
 		this.setPhase("idle")
 		this.client.close()
 	}
