@@ -517,7 +517,7 @@
 	display: none;
 	min-width: 54px;
 	max-width: 190px;
-	overflow: hidden;
+	overflow: visible;
 	transition: opacity 0.12s linear;
 	padding: 3px 8px 5px;
 	border-radius: 8px;
@@ -539,7 +539,8 @@
 .net-tag[data-owner] {
 	border-color: rgba(255, 209, 92, 0.48);
 	background: rgba(30, 22, 8, 0.78);
-	box-shadow: 0 0 16px rgba(255, 190, 40, 0.12);
+	box-shadow: 0 0 18px rgba(255, 190, 40, 0.22);
+	margin-top: -7px;
 }
 .net-tag[data-owner]::before,
 .net-self[data-owner]::before {
@@ -556,7 +557,7 @@
 	text-shadow: 0 0 4px rgba(255,255,255,.7);
 	filter: drop-shadow(0 0 5px rgba(255,190,40,.5));
 }
-.net-tag[data-owner]::before { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); margin: 0; }
+.net-tag[data-owner]::before { position: absolute; top: -14px; left: 50%; z-index: 2; transform: translateX(-50%); margin: 0; width: 21px; height: 24px; font-size: 13px; }
 .net-tag[data-owner] .net-tag__name,
 .net-self[data-owner] .net-self__name { color: #ffe39a !important; }
 
