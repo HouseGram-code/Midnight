@@ -1,9 +1,9 @@
 {
 	"name": "midnight-8b",
-	"version": "1.1.1-beta",
+	"version": "1.0.0-beta",
 	"private": true,
 	"type": "module",
-	"description": "Полночь в 8-Б — браузерный хоррор о ночной школе на TypeScript и WebGL2 без внешних библиотек",
+	"description": "Полночь в 8-Б — школьный хоррор",
 	"scripts": {
 		"build": "tsc -p .",
 		"vercel-build": "tsc -p . && node tools/vercel-build.mjs",

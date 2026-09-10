@@ -5,7 +5,7 @@
  * Всё на обычных DOM-событиях — никаких фреймворков.
  */
 import { requireElement, setHidden, setText } from "./dom.js";
-export const GAME_VERSION = "1.1.1-beta";
+export const GAME_VERSION = "1.0.0-beta";
 const STORAGE_KEY = "school3d.settings.v1";
 const DEFAULT_SETTINGS = {
     sensitivity: 1,

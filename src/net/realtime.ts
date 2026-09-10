@@ -13,7 +13,8 @@
  */
 
 export const SUPABASE_URL = "https://itdmkqmluxrrbtnfaikh.supabase.co"
-export const SUPABASE_KEY = "sb_publishable_hj5b52TLK6XZmpBT6zF1_g_I-oRsBAl"
+/** Публичный anon JWT. Секретные и service_role ключи сюда добавлять нельзя. */
+export const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0ZG1rcW1sdXhycmJ0bmZhaWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwMjI5NjAsImV4cCI6MjEwNDU5ODk2MH0.CxkqvX6Q30qeQ3bTgSWpf_IiRyPG-fAuS862ISG8u5U"
 
 export type NetPayload = Record<string, unknown>
 export type NetHandler = (payload: NetPayload) => void
@@ -196,6 +197,7 @@ class Channel implements NetChannel {
 					presence: { key: this.client.id, enabled: true },
 					private: false,
 				},
+				access_token: SUPABASE_KEY,
 			},
 			ref: this.client.nextRef(),
 		})
