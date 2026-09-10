@@ -69,6 +69,7 @@ class Channel {
     members = new Map();
     queue = [];
     meta = null;
+    trackedJson = "";
     joined = false;
     left = false;
     joinRef = "";
@@ -122,6 +123,12 @@ class Channel {
         this.meta = meta;
         if (!this.joined || this.left)
             return;
+        const nextJson = JSON.stringify(meta);
+        // Supabase ограничивает частоту Presence track. Одинаковое состояние
+        // повторно не отправляем — сервер и так хранит его до отключения.
+        if (nextJson === this.trackedJson)
+            return;
+        this.trackedJson = nextJson;
         this.client.push({
             topic: this.topic,
             event: "presence",
@@ -151,6 +158,7 @@ class Channel {
         if (this.left)
             return;
         this.joined = false;
+        this.trackedJson = "";
         this.joinRef = this.client.nextRef();
         this.client.push({
             topic: this.topic,

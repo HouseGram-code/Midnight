@@ -110,6 +110,7 @@ class Channel implements NetChannel {
 	private readonly members = new Map<string, NetPayload>()
 	private readonly queue: Array<{ event: string; payload: NetPayload }> = []
 	private meta: NetPayload | null = null
+	private trackedJson = ""
 	private joined = false
 	private left = false
 	private joinRef = ""
@@ -164,6 +165,11 @@ class Channel implements NetChannel {
 	track(meta: NetPayload): void {
 		this.meta = meta
 		if (!this.joined || this.left) return
+		const nextJson = JSON.stringify(meta)
+		// Supabase ограничивает частоту Presence track. Одинаковое состояние
+		// повторно не отправляем — сервер и так хранит его до отключения.
+		if (nextJson === this.trackedJson) return
+		this.trackedJson = nextJson
 		this.client.push({
 			topic: this.topic,
 			event: "presence",
@@ -194,6 +200,7 @@ class Channel implements NetChannel {
 	join(): void {
 		if (this.left) return
 		this.joined = false
+		this.trackedJson = ""
 		this.joinRef = this.client.nextRef()
 		this.client.push({
 			topic: this.topic,

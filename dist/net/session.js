@@ -82,7 +82,6 @@ export class OnlineSession {
         this.lobby = lobby;
         lobby.onPresence(() => this.readPresence());
         lobby.on("match", (payload) => this.handleMatch(payload));
-        lobby.on("hi", () => this.publish());
         this.publish();
         const joined = await Promise.race([
             lobby.ready(),
@@ -95,8 +94,6 @@ export class OnlineSession {
             return false;
         }
         this.setPhase("lobby");
-        // Просим остальных переслать своё presence — быстрее собирается список.
-        setTimeout(() => lobby.send("hi", { id: this.id }), 250);
         return true;
     }
     async enterCodeRoom(code, asHost) {
@@ -168,7 +165,6 @@ export class OnlineSession {
         if (this.tick < 0.4)
             return;
         this.tick = 0;
-        this.publish();
         if (this.isCodeRoom)
             return;
         this.evaluate(elapsed);
