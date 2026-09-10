@@ -16,6 +16,8 @@
 	--radius: 16px;
 	--font: "Segoe UI", "Inter", system-ui, -apple-system, "Noto Sans", Arial, sans-serif;
 	--mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+	/* Эмблема создателя: щит с короной. Одна векторная иконка на весь интерфейс. */
+	--creator-emblem: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2022%2024%22%20fill=%22none%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22a%22%20x1=%223%22%20y1=%221%22%20x2=%2219%22%20y2=%2223%22%20gradientUnits=%22userSpaceOnUse%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%23fff3bd%22/%3E%3Cstop%20offset=%22.45%22%20stop-color=%22%23ffc83d%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23a3610a%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id=%22b%22%20x1=%2211%22%20y1=%223%22%20x2=%2211%22%20y2=%2222%22%20gradientUnits=%22userSpaceOnUse%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%234a2905%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23170e03%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath%20d=%22M11%201.6%2019.4%204.3v7.2c0%205.1-3.5%209-8.4%2010.9C6.1%2020.5%202.6%2016.6%202.6%2011.5V4.3Z%22%20fill=%22url(%23b)%22%20stroke=%22url(%23a)%22%20stroke-width=%222%22%20stroke-linejoin=%22round%22/%3E%3Cpath%20d=%22M6%2016.2%204.9%207.6%208.3%2010.9%2011%205.6%2013.7%2010.9%2017.1%207.6%2016%2016.2Z%22%20fill=%22url(%23a)%22%20stroke=%22%23241503%22%20stroke-width=%22.4%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E");
 }
 
 * {
@@ -832,13 +834,17 @@ kbd {
 .online__owner-copy strong { color: #fff0bd; font: 800 15px/1.1 var(--font); letter-spacing: .04em; }
 .online__owner-copy small { color: #cdbd91; font: 500 10px/1.2 var(--font); }
 .online__owner-verified { padding: 4px 7px; border: 1px solid rgba(255,218,108,.32); border-radius: 999px; color: #ffe8a5; background: rgba(255,206,75,.1); font: 700 9px/1 var(--mono); white-space: nowrap; }
-.creator-emblem { position: relative; display: inline-grid; place-items: center; width: 25px; height: 28px; flex: 0 0 auto; clip-path: polygon(50% 0, 94% 16%, 88% 68%, 50% 100%, 12% 68%, 6% 16%); background: linear-gradient(145deg,#fff0a8 0%,#ffc83d 40%,#a96408 100%); filter: drop-shadow(0 0 7px rgba(255,190,40,.6)); }
-.creator-emblem::before { content: "♛"; display: grid; place-items: center; width: 19px; height: 21px; clip-path: inherit; background: linear-gradient(160deg,#4b2603,#171006); color: #ffd76e; font: 700 14px/1 Georgia,serif; text-shadow: 0 0 5px #ffbd2e; }
-.creator-emblem::after { content: ""; position: absolute; top: 4px; left: 7px; width: 4px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.72); transform: rotate(30deg); filter: blur(.3px); }
-.creator-emblem--small { width: 22px; height: 24px; margin-left: auto; }
-.creator-emblem--small::before { width: 17px; height: 18px; font-size: 12px; }
-.creator-emblem--profile { width: 34px; height: 38px; filter: drop-shadow(0 0 10px rgba(255,190,40,.72)); }
-.creator-emblem--profile::before { width: 27px; height: 30px; font-size: 19px; }
+/* Иконка создателя: компактная, ровно по строке текста, ничего не торчит. */
+.creator-emblem {
+	display: inline-block;
+	flex: 0 0 auto;
+	height: 16px;
+	aspect-ratio: 22 / 24;
+	background: var(--creator-emblem) center / contain no-repeat;
+	filter: drop-shadow(0 0 4px rgba(255, 190, 40, 0.42));
+}
+.creator-emblem--small { height: 15px; }
+.creator-emblem--profile { height: 26px; filter: drop-shadow(0 0 6px rgba(255, 190, 40, 0.5)); }
 
 .online__ping {
 	min-width: 62px;
@@ -1052,7 +1058,7 @@ kbd {
 	border-color: rgba(150, 210, 255, 0.45);
 }
 .online-slot--owner { border-color: rgba(255, 209, 92, 0.42); background: rgba(74, 53, 16, 0.2); }
-.online-slot--owner .creator-emblem { order: -1; margin: -3px 1px -3px -3px; }
+.online-slot--owner .creator-emblem { margin: 0 -1px; }
 
 .online-slot--empty {
 	color: var(--ink-faint);

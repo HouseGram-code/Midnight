@@ -333,12 +333,12 @@ export class OnlinePanel {
     }
     renderMatchRoster(info) { this.rosterEl.replaceChildren(); for (const player of info.players)
         this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id, player.owner)); }
-    rosterRow(name, index, self, owner) { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot, label); if (owner) {
+    rosterRow(name, index, self, owner) { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot); if (owner) {
         const mark = document.createElement("b");
         mark.className = "creator-emblem creator-emblem--small";
         mark.title = "Официальный создатель игры";
         row.append(mark);
-    } return row; }
+    } row.append(label); return row; }
     showCodeSetup() { this.activeCode = ""; this.codeHost = false; setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true); }
     showCodeCard(code) { setText(this.codeValue, code); setHidden(this.codeSetup, true); setHidden(this.codeCard, false); }
     async copyCode() { if (!this.activeCode)
