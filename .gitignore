@@ -1,0 +1,11 @@
+node_modules/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# dist НЕ игнорируется специально: в архиве лежит готовая сборка,
+# чтобы игра запускалась без npm install и без компиляции.
+
+# Статика для Vercel собирается командой npm run vercel-build.
+public/
+.vercel/

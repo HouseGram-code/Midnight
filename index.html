@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ru">
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+		/>
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<title>Полночь в 8-Б — школьный хоррор</title>
+		<meta
+			name="description"
+			content="Полночь в 8-Б — браузерный хоррор на TypeScript и WebGL2 без внешних библиотек: найдите пять предметов и выберитесь из школы."
+		/>
+		<meta name="color-scheme" content="dark" />
+		<link rel="stylesheet" href="./styles/base.css" />
+		<link rel="stylesheet" href="./styles/hud.css" />
+		<link rel="stylesheet" href="./styles/touch.css" />
+	</head>
+	<body>
+		<canvas id="scene"></canvas>
+
+		<!-- Игровой интерфейс хоррор-режима -->
+		<div id="game-hud" class="game-hud" hidden>
+			<div id="vignette" class="vignette"></div>
+			<div id="damage" class="damage"></div>
+			<div class="crosshair"></div>
+
+			<div class="hud-top">
+				<div id="hearts" class="hearts" aria-label="Жизни"></div>
+				<div id="objective" class="objective"></div>
+			</div>
+
+			<div id="item-slots" class="item-slots" aria-label="Найденные предметы"></div>
+
+			<div id="hand-label" class="hand-label"></div>
+
+			<div id="hotbar" class="hotbar" aria-label="Пояс предметов" hidden></div>
+
+			<div id="prompt" class="prompt" hidden>
+				<span id="prompt-text" class="prompt__text"></span>
+				<div id="hold" class="hold" hidden>
+					<div class="hold__track"><div id="hold-fill" class="hold__fill"></div></div>
+					<span id="hold-label" class="hold__label"></span>
+				</div>
+			</div>
+
+			<div id="toast" class="toast" hidden></div>
+			<div id="letterbox" class="letterbox"><i></i><i></i></div>
+			<div id="fade" class="fade"></div>
+			<div id="subtitle" class="subtitle"></div>
+			<div id="skip-hint" class="skip-hint" hidden>Esc — пропустить сцену</div>
+		</div>
+
+		<!-- Онлайн: ники игроков, пинг и чат -->
+		<div id="net-hud" class="net-hud" hidden>
+			<div id="net-tags" class="net-tags"></div>
+			<div id="net-self" class="net-self">
+				<span id="net-ping-dot" class="net-self__dot" data-q="wait"></span>
+				<span id="net-self-name" class="net-self__name">Игрок</span>
+				<span id="net-self-info" class="net-self__info">…</span>
+			</div>
+			<div id="net-chat" class="net-chat">
+				<div id="net-chat-log" class="net-chat__log"></div>
+				<input
+					id="net-chat-input"
+					class="net-chat__input"
+					type="text"
+					maxlength="90"
+					placeholder="сообщение команде…"
+					autocomplete="off"
+					hidden
+				/>
+				<div id="net-chat-hint" class="net-chat__hint" hidden>T — чат</div>
+			</div>
+		</div>
+
+		<canvas id="minimap" class="minimap" width="560" height="360" aria-label="План этажа" hidden></canvas>
+
+		<!-- Технический HUD: только с ?debug=1 -->
+		<div id="hud" class="hud" hidden>
+			<div class="panel panel--room">
+				<div class="room-name" id="hud-room">Вестибюль</div>
+				<div class="room-meta" id="hud-position">X 0.0 · Y 0.0 · Z 0.0</div>
+				<div class="room-meta">режим: <span id="hud-mode">шаг</span></div>
+			</div>
+
+			<div class="panel panel--stats" id="stats">
+				<div class="stat"><span>FPS</span><span id="stat-fps">—</span></div>
+				<div class="stat"><span>Кадр</span><span id="stat-frame">—</span></div>
+				<div class="stat"><span>Вызовы</span><span id="stat-draws">—</span></div>
+				<div class="stat"><span>Треугольники</span><span id="stat-tris">—</span></div>
+				<div class="stat"><span>Разрешение</span><span id="stat-scale">—</span></div>
+			</div>
+
+			<div class="panel panel--help" id="help">
+				<b>WASD</b> движение · <b>Shift</b> бег · <b>C</b> присесть ·
+				<b>Пробел</b> прыжок<br />
+				<b>E</b> взаимодействие (удержание 2.5 с) · <b>F</b> фонарь<br />
+				<b>1…6</b> предмет в руку (1 — фонарь)<br />
+				<b>M</b> карта · <b>P</b> статистика · <b>H</b> подсказка
+			</div>
+		</div>
+
+		<!-- Главное меню -->
+		<div id="menu" class="menu" hidden>
+			<div class="menu__sky"></div>
+			<div class="menu__fog"></div>
+			<div class="menu__grain"></div>
+			<div class="menu__vignette"></div>
+			<div class="menu__stage">
+				<section id="menu-root" class="menu__panel menu__panel--root">
+					<p class="menu__eyebrow">хоррор · первый этаж · ночная смена</p>
+					<h1 class="menu__title">ПОЛНОЧЬ <span>в 8-Б</span></h1>
+					<p class="menu__tagline">
+						Урок закончился давно. Свет выключили, двери забили досками,
+						а она всё ещё ходит по коридору с дубинкой.
+					</p>
+					<div class="menu__buttons">
+						<button class="button button--primary" id="menu-play" type="button">
+							<span class="button__mark">▶</span><span class="button__text">Играть</span>
+						</button>
+						<button class="button button--online" id="menu-open-online" type="button">
+							<span class="button__mark">◉</span><span class="button__text">Онлайн</span><span class="button__badge">бета</span>
+						</button>
+						<button class="button" id="menu-open-settings" type="button">
+							<span class="button__mark">⚙</span><span class="button__text">Настройки</span>
+						</button>
+						<button class="button" id="menu-open-controls" type="button">
+							<span class="button__mark">⌨</span><span class="button__text">Управление</span>
+						</button>
+						<button class="button" id="menu-open-about" type="button">
+							<span class="button__mark">†</span><span class="button__text">Об игре</span>
+						</button>
+					</div>
+					<p class="menu__version" id="menu-version">версия</p>
+				</section>
+
+				<section id="menu-settings" class="menu__panel" hidden>
+					<h2 class="menu__heading">Настройки</h2>
+					<div class="setting">
+						<label class="setting__label" for="set-sensitivity">Чувствительность мыши</label>
+						<input class="setting__range" id="set-sensitivity" type="range" min="30" max="250" step="5" value="100" />
+						<span class="setting__value" id="set-sensitivity-value">100%</span>
+					</div>
+					<div class="setting">
+						<label class="setting__label" for="set-volume">Громкость</label>
+						<input class="setting__range" id="set-volume" type="range" min="0" max="100" step="1" value="80" />
+						<span class="setting__value" id="set-volume-value">80%</span>
+					</div>
+					<div class="setting">
+						<label class="setting__label" for="set-brightness">Яркость ночи</label>
+						<input class="setting__range" id="set-brightness" type="range" min="60" max="160" step="5" value="100" />
+						<span class="setting__value" id="set-brightness-value">100%</span>
+					</div>
+					<div class="setting setting--switch">
+						<label class="setting__label" for="set-invert">Инвертировать вертикаль</label>
+						<input class="setting__check" id="set-invert" type="checkbox" />
+					</div>
+					<div class="menu__row">
+						<button class="button button--primary" id="settings-back" type="button">Назад</button>
+						<button class="button button--ghost" id="settings-reset" type="button">Сбросить</button>
+					</div>
+					<p class="menu__note">Настройки сохраняются в браузере и переживают перезагрузку.</p>
+				</section>
+
+				<section id="menu-controls" class="menu__panel" hidden>
+					<h2 class="menu__heading">Управление</h2>
+					<ul class="keys keys--wide">
+						<li><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> движение</li>
+						<li><span><kbd>Shift</kbd></span> бежать (громко!)</li>
+						<li><span><kbd>C</kbd> / <kbd>Ctrl</kbd></span> присесть — тише всего</li>
+						<li><span><kbd>Пробел</kbd></span> прыжок</li>
+						<li><span><kbd>E</kbd></span> взять / открыть — удерживать 2.5 с</li>
+						<li><span><kbd>F</kbd></span> фонарь вкл/выкл (и вернуть его в руку)</li>
+						<li><span><kbd>1</kbd>…<kbd>6</kbd></span> предмет в руку: 1 — фонарь, дальше — находки</li>
+						<li><span><kbd>E</kbd></span> у шкафчика — спрятаться и выйти</li>
+						<li><span><kbd>M</kbd> / <kbd>Tab</kbd></span> план этажа</li>
+						<li><span><kbd>T</kbd></span> чат — только в онлайне</li>
+						<li><span><kbd>Esc</kbd></span> пауза, а в кат-сцене — пропуск</li>
+						<li><span><kbd>F11</kbd></span> на весь экран</li>
+					</ul>
+					<button class="button button--primary" id="controls-back" type="button">Назад</button>
+				</section>
+
+				<section id="menu-online" class="menu__panel menu__panel--online" hidden>
+					<h2 class="menu__heading">Онлайн<span class="menu__beta">бета</span></h2>
+					<p class="menu__text menu__text--tight">
+						До пяти человек в одной школе. Предметы общие, баррикада одна
+						— и учительница тоже одна на всех. Кто вышел — тот спасён.
+					</p>
+
+					<div class="online__row">
+						<label class="online__label" for="online-name">Имя</label>
+						<input
+							id="online-name"
+							class="online__input"
+							type="text"
+							maxlength="14"
+							placeholder="как вас назвать?"
+							autocomplete="off"
+							spellcheck="false"
+						/>
+						<span class="online__ping" id="online-ping" data-q="wait" title="Реальный пинг до сервера">—</span>
+					</div>
+
+					<div class="online__stage">
+						<div class="online__loader" id="online-loader" data-mode="idle">
+							<div class="online__ring" id="online-ring"><span id="online-ring-label">25</span></div>
+							<div class="online__orbit"><i></i><i></i><i></i></div>
+							<div class="online__scan"></div>
+						</div>
+						<div class="online__texts">
+							<p class="online__status" id="online-status">Подключаемся к серверу…</p>
+							<p class="online__hint" id="online-hint">Первый вход занимает пару секунд.</p>
+						</div>
+					</div>
+
+					<div class="online__search" id="online-search" hidden>
+						<div class="online__roster" id="online-roster"></div>
+					</div>
+
+					<div class="menu__row online__actions">
+						<button class="button button--primary" id="online-start" type="button">Начать игру онлайн</button>
+						<button class="button button--ghost" id="online-cancel" type="button" hidden>Отмена</button>
+						<button class="button button--ghost" id="online-solo" type="button" hidden>Играть одному</button>
+						<button class="button" id="online-back" type="button">Назад</button>
+					</div>
+					<p class="menu__note">
+						Нужен интернет. Пинг настоящий — это время ответа сервера.
+						В игре чат по клавише T.
+					</p>
+				</section>
+
+				<section id="menu-about" class="menu__panel" hidden>
+					<h2 class="menu__heading">Об игре</h2>
+					<p class="menu__text">
+						Вы заснули на уроке в кабинете 101. Когда вы проснулись, школа
+						оказалась закрыта. Цель простая: найти пять предметов,
+						разобрать баррикаду у главного выхода и уйти живым.
+						Когда свет гаснет — бегите за фонарём в свой класс.
+					</p>
+					<p class="menu__warning">⚠️ Резкие звуки и темнота. Начните с громкости 50–60%.</p>
+					<button class="button button--primary" id="about-back" type="button">Назад</button>
+				</section>
+			</div>
+		</div>
+
+		<div id="loading" class="screen">
+			<div class="card card--compact">
+				<div class="spinner" aria-hidden="true"></div>
+				<p class="lead lead--tight" id="loading-text">Загрузка…</p>
+			</div>
+		</div>
+
+		<div id="start" class="screen" hidden>
+			<div class="card">
+				<h1>Полночь в 8-Б</h1>
+				<p class="lead">Мышь захватывается после нажатия кнопки — Esc отпускает.</p>
+				<button class="button button--primary" id="start-play" type="button">Зайти в школу</button>
+			</div>
+		</div>
+
+		<div id="pause" class="screen" hidden>
+			<div class="card card--compact">
+				<h1>Пауза</h1>
+				<p class="lead">Курсор отпущен. Школа подождёт.</p>
+				<button class="button button--primary" id="pause-resume" type="button">Продолжить</button>
+			</div>
+		</div>
+
+		<div id="death" class="screen screen--dark" hidden>
+			<div class="card card--death">
+				<p class="eyebrow eyebrow--danger">игра окончена</p>
+				<h1>Вас нашли</h1>
+				<p class="lead" id="death-text">Учительница нашла вас.</p>
+				<div class="menu__row">
+					<button class="button button--primary" id="death-retry" type="button">Заново</button>
+					<button class="button button--ghost" id="death-menu" type="button">В меню</button>
+				</div>
+			</div>
+		</div>
+
+		<div id="win" class="screen screen--dark" hidden>
+			<div class="card card--win">
+				<p class="eyebrow">выбрались</p>
+				<h1>Игра пройдена!</h1>
+				<p class="lead">
+					Вы выбили баррикаду, раскрыли двери и выбежали в ночь.
+					А в меню есть «Онлайн бета» — там бежать можно впятером.
+				</p>
+				<div class="menu__row">
+					<button class="button button--primary" id="win-again" type="button">Ещё раз</button>
+					<button class="button button--ghost" id="win-menu" type="button">В меню</button>
+				</div>
+			</div>
+		</div>
+
+		<div id="error" class="screen" hidden>
+			<div class="card card--error">
+				<h1>Что-то сломалось</h1>
+				<p class="lead">Игра не смогла запуститься. Текст ошибки:</p>
+				<pre class="error-text" id="error-text"></pre>
+				<p class="meta">
+					Нужен браузер с WebGL2 (Chrome, Edge, Firefox, Safari 15+) и запуск через
+					локальный сервер, а не открытие файла напрямую.
+				</p>
+			</div>
+		</div>
+
+		<script type="module" src="./dist/main.js"></script>
+	</body>
+</html>

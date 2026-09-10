@@ -1,0 +1,689 @@
+/*
+ * Игровой интерфейс: жизни, предметы, задача, подсказки, удержание E,
+ * субтитры, виньетка, затемнение, кинополосы, миникарта и отладочные панели.
+ * Всё неинтерактивное — pointer-events: none, иначе клик не дойдёт до холста.
+ */
+
+.game-hud {
+	position: fixed;
+	inset: 0;
+	z-index: 40;
+	pointer-events: none;
+	font-family: var(--font);
+	user-select: none;
+}
+
+/* ---------- прицел ---------- */
+
+.crosshair {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 5px;
+	height: 5px;
+	margin: -2.5px 0 0 -2.5px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.62);
+	box-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+	z-index: 12;
+}
+
+/* ---------- верхняя полоса ---------- */
+
+.hud-top {
+	position: absolute;
+	top: 18px;
+	left: 22px;
+	right: 22px;
+	z-index: 20;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.hearts {
+	display: flex;
+	gap: 5px;
+	font-size: 22px;
+	line-height: 1;
+	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+.heart {
+	color: #e0403a;
+}
+
+.heart--lost {
+	color: rgba(220, 225, 240, 0.28);
+}
+
+.objective {
+	max-width: 46ch;
+	padding: 8px 14px;
+	border-radius: 10px;
+	border: 1px solid rgba(150, 160, 190, 0.14);
+	background: rgba(4, 5, 9, 0.55);
+	font-size: 13px;
+	line-height: 1.45;
+	text-align: right;
+	color: #dfe3ee;
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* ---------- предметы ---------- */
+
+.item-slots {
+	position: absolute;
+	left: 22px;
+	bottom: 22px;
+	z-index: 20;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	max-width: 46vw;
+}
+
+.slot {
+	padding: 6px 11px;
+	border-radius: 999px;
+	border: 1px solid rgba(150, 160, 190, 0.22);
+	background: rgba(4, 5, 9, 0.6);
+	font-size: 12px;
+	letter-spacing: 0.04em;
+	color: var(--ink-faint);
+	white-space: nowrap;
+}
+
+.slot--found {
+	border-color: rgba(111, 208, 140, 0.45);
+	background: rgba(20, 46, 32, 0.7);
+	color: #bff0cf;
+}
+
+/* ---------- предмет в руке ---------- */
+
+.hand-label {
+	position: absolute;
+	right: 26px;
+	bottom: 26px;
+	z-index: 20;
+	padding: 7px 13px;
+	border-radius: 10px;
+	border: 1px solid rgba(230, 200, 120, 0.3);
+	background: rgba(24, 18, 6, 0.62);
+	font-size: 13px;
+	color: #f0dca6;
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* ---------- подсказка и удержание ---------- */
+
+.prompt {
+	position: absolute;
+	left: 50%;
+	top: 58%;
+	z-index: 22;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	min-width: 230px;
+}
+
+.prompt__text {
+	padding: 7px 14px;
+	border-radius: 999px;
+	border: 1px solid rgba(200, 210, 235, 0.18);
+	background: rgba(4, 5, 9, 0.66);
+	font-size: 14px;
+	color: #eceffa;
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+
+.hold {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 5px;
+	width: 230px;
+}
+
+.hold__track {
+	width: 100%;
+	height: 6px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.14);
+	overflow: hidden;
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.hold__fill {
+	width: 0%;
+	height: 100%;
+	border-radius: 999px;
+	background: linear-gradient(90deg, #d8b45a, #f2e0a8);
+	transition: width 0.06s linear;
+}
+
+.hold__label {
+	font-size: 11px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: #cfd4e4;
+}
+
+/* ---------- уведомления ---------- */
+
+.toast {
+	position: absolute;
+	left: 50%;
+	top: 15%;
+	z-index: 70;
+	transform: translateX(-50%);
+	max-width: 60ch;
+	padding: 9px 16px;
+	border-radius: 12px;
+	border: 1px solid rgba(200, 210, 235, 0.16);
+	background: rgba(6, 7, 12, 0.78);
+	font-size: 14px;
+	text-align: center;
+	color: #eceffa;
+	animation: toast-in 0.2s ease-out;
+}
+
+@keyframes toast-in {
+	from {
+		opacity: 0;
+		transform: translate(-50%, -8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(-50%);
+	}
+}
+
+/* ---------- виньетка, урон, затемнение ---------- */
+
+.vignette {
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	opacity: 0;
+	background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 34%, rgba(28, 0, 0, 0.62) 78%, rgba(10, 0, 0, 0.92) 100%);
+	transition: opacity 0.3s ease;
+}
+
+.damage {
+	position: absolute;
+	inset: 0;
+	z-index: 11;
+	opacity: 0;
+	background: radial-gradient(circle at 50% 50%, rgba(180, 0, 0, 0) 30%, rgba(190, 12, 8, 0.55) 100%);
+}
+
+.fade {
+	position: absolute;
+	inset: 0;
+	z-index: 45;
+	opacity: 0;
+	background: #000;
+	pointer-events: none;
+}
+
+.letterbox {
+	position: absolute;
+	inset: 0;
+	z-index: 46;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	pointer-events: none;
+}
+
+.letterbox i {
+	display: block;
+	height: 9vh;
+	background: #000;
+}
+
+/* ---------- субтитры и пропуск сцены ---------- */
+
+.subtitle {
+	position: absolute;
+	left: 50%;
+	bottom: 15vh;
+	z-index: 60;
+	transform: translateX(-50%);
+	width: min(70ch, 84vw);
+	padding: 10px 18px;
+	border-radius: 12px;
+	background: rgba(0, 0, 0, 0.42);
+	font-size: clamp(15px, 1.5vw, 20px);
+	line-height: 1.5;
+	text-align: center;
+	color: #f2f4fa;
+	text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+}
+
+.skip-hint {
+	position: absolute;
+	right: 26px;
+	bottom: 12vh;
+	z-index: 65;
+	font-size: 12px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: rgba(230, 235, 250, 0.55);
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- миникарта ---------- */
+
+.minimap {
+	position: fixed;
+	right: 20px;
+	top: 64px;
+	z-index: 50;
+	width: 280px;
+	height: 180px;
+	border-radius: 12px;
+	border: 1px solid rgba(150, 160, 190, 0.2);
+	background: rgba(4, 5, 9, 0.72);
+	box-shadow: 0 18px 46px rgba(0, 0, 0, 0.55);
+	pointer-events: none;
+}
+
+/* ---------- отладочные панели (?debug=1) ---------- */
+
+.hud {
+	position: fixed;
+	inset: 0;
+	z-index: 55;
+	pointer-events: none;
+	font-family: var(--font);
+}
+
+.panel {
+	position: absolute;
+	padding: 10px 13px;
+	border-radius: 10px;
+	border: 1px solid rgba(150, 160, 190, 0.16);
+	background: rgba(4, 5, 9, 0.66);
+	font-size: 12px;
+	color: #dfe3ee;
+}
+
+.panel--room {
+	left: 22px;
+	top: 56px;
+	min-width: 200px;
+}
+
+.panel--stats {
+	right: 22px;
+	bottom: 22px;
+	min-width: 190px;
+}
+
+.panel--help {
+	left: 50%;
+	bottom: 22px;
+	transform: translateX(-50%);
+	text-align: center;
+	line-height: 1.7;
+	color: var(--ink-dim);
+}
+
+.panel--help b {
+	color: #fff;
+}
+
+.room-name {
+	font-size: 15px;
+	font-weight: 600;
+	margin-bottom: 3px;
+}
+
+.room-meta {
+	font-family: var(--mono);
+	font-size: 11px;
+	color: var(--ink-faint);
+}
+
+.stat {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	font-family: var(--mono);
+	font-size: 11px;
+	line-height: 1.7;
+	color: var(--ink-dim);
+}
+
+.stat span:last-child {
+	color: #fff;
+}
+
+@media (max-width: 720px) {
+	.minimap {
+		width: 190px;
+		height: 122px;
+	}
+
+	.objective {
+		font-size: 12px;
+		max-width: 22ch;
+	}
+
+	.panel--help {
+		display: none;
+	}
+}
+
+/* ---------- пояс предметов (клавиши 1…6) ---------- */
+
+.hotbar {
+	position: absolute;
+	left: 50%;
+	bottom: 18px;
+	z-index: 21;
+	display: flex;
+	gap: 6px;
+	transform: translateX(-50%);
+	padding: 6px;
+	border-radius: 14px;
+	border: 1px solid rgba(150, 160, 190, 0.18);
+	background: rgba(4, 5, 9, 0.55);
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+
+.cell {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	min-width: 62px;
+	padding: 6px 8px 5px;
+	border-radius: 10px;
+	border: 1px solid rgba(150, 160, 190, 0.18);
+	background: rgba(10, 12, 18, 0.72);
+	color: rgba(210, 216, 230, 0.35);
+	transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+
+.cell__key {
+	font-family: var(--mono);
+	font-size: 10px;
+	font-style: normal;
+	letter-spacing: 0.08em;
+	color: rgba(210, 216, 230, 0.45);
+}
+
+.cell__label {
+	font-size: 11px;
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+}
+
+.cell--filled {
+	border-color: rgba(230, 200, 120, 0.28);
+	background: rgba(24, 20, 10, 0.78);
+	color: #e8d5a2;
+}
+
+.cell--active {
+	border-color: rgba(255, 214, 120, 0.85);
+	background: rgba(58, 44, 12, 0.9);
+	color: #fff0c4;
+	transform: translateY(-4px);
+	box-shadow: 0 0 0 1px rgba(255, 214, 120, 0.35), 0 8px 22px rgba(255, 176, 60, 0.22);
+}
+
+.cell--active .cell__key {
+	color: #ffd98a;
+}
+
+/* поднимаем старые панели, чтобы пояс их не перекрывал */
+
+.item-slots {
+	bottom: 86px;
+}
+
+.hand-label {
+	bottom: 86px;
+}
+
+@media (max-width: 720px) {
+	.hotbar {
+		gap: 4px;
+		padding: 4px;
+		bottom: 12px;
+	}
+
+	.cell {
+		min-width: 46px;
+		padding: 4px 6px;
+	}
+
+	.cell__label {
+		font-size: 10px;
+		max-width: 8ch;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.item-slots,
+	.hand-label {
+		bottom: 74px;
+	}
+}
+
+/* Карта крупнее: иначе двери и коридоры на ней не читаются. */
+.minimap {
+	width: 340px;
+	height: 219px;
+}
+
+@media (max-width: 720px) {
+	.minimap {
+		width: 210px;
+		height: 135px;
+	}
+}
+
+/* ======================= Онлайн: ники, пинг, чат ======================= */
+
+.net-hud {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 44;
+}
+
+.net-tags {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+}
+
+.net-tag {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: none;
+	min-width: 54px;
+	max-width: 190px;
+	overflow: hidden;
+	transition: opacity 0.12s linear;
+	padding: 3px 8px 5px;
+	border-radius: 8px;
+	background: rgba(6, 8, 12, 0.62);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	text-align: center;
+	will-change: transform;
+}
+
+.net-tag__name {
+	display: block;
+	font-size: 13px;
+	line-height: 1.15;
+	font-weight: 600;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+	white-space: nowrap;
+}
+
+.net-tag__bar {
+	display: block;
+	margin-top: 3px;
+	height: 3px;
+	border-radius: 2px;
+	background: rgba(255, 255, 255, 0.14);
+	overflow: hidden;
+}
+
+.net-tag__bar i {
+	display: block;
+	height: 100%;
+	width: 100%;
+	border-radius: 2px;
+}
+
+.net-self {
+	position: absolute;
+	top: 8px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	max-width: min(62vw, 440px);
+	white-space: nowrap;
+	overflow: hidden;
+	padding: 4px 11px;
+	border-radius: 999px;
+	background: rgba(6, 8, 12, 0.6);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	backdrop-filter: blur(4px);
+}
+
+.net-self__dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #8a94a6;
+	box-shadow: 0 0 8px currentColor;
+}
+
+.net-self__dot[data-q="good"] {
+	background: #6fe09a;
+}
+
+.net-self__dot[data-q="ok"] {
+	background: #f0d27a;
+}
+
+.net-self__dot[data-q="bad"] {
+	background: #ff8f7a;
+}
+
+.net-self__name {
+	font-size: 13px;
+	font-weight: 600;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.net-self__info {
+	font-family: var(--mono);
+	font-size: 11px;
+	letter-spacing: 0.06em;
+	color: var(--ink-dim);
+}
+
+.net-chat {
+	position: absolute;
+	left: 20px;
+	bottom: 116px;
+	width: min(380px, 32vw);
+	z-index: 66;
+}
+
+.net-chat__log {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	max-height: 168px;
+	overflow: hidden;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+}
+
+.net-chat[data-live] .net-chat__log,
+.net-chat[data-open] .net-chat__log {
+	opacity: 1;
+}
+
+.net-chat[data-open] .net-chat__log {
+	overflow-y: auto;
+	pointer-events: auto;
+}
+
+.net-chat__line {
+	padding: 3px 8px;
+	border-radius: 7px;
+	background: rgba(6, 8, 12, 0.55);
+	font-size: 13px;
+	line-height: 1.35;
+	word-break: break-word;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+	animation: net-chat-in 0.18s ease both;
+}
+
+.net-chat__line--sys {
+	color: #9fb0c8;
+	font-style: italic;
+}
+
+.net-chat__who {
+	font-weight: 600;
+}
+
+@keyframes net-chat-in {
+	from {
+		opacity: 0;
+		transform: translateX(-8px);
+	}
+}
+
+.net-chat__input {
+	margin-top: 6px;
+	width: 100%;
+	padding: 7px 10px;
+	border-radius: 9px;
+	border: 1px solid rgba(150, 210, 255, 0.4);
+	background: rgba(6, 8, 12, 0.9);
+	color: var(--ink);
+	font-family: var(--font);
+	font-size: 14px;
+	outline: none;
+	pointer-events: auto;
+}
+
+.net-chat__hint {
+	margin-top: 6px;
+	font-family: var(--mono);
+	font-size: 10px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: rgba(200, 210, 225, 0.35);
+}
+
+@media (max-width: 900px) {
+	.net-chat {
+		width: min(300px, 60vw);
+		bottom: 96px;
+	}
+}

@@ -1,0 +1,188 @@
+/* ===================== Управление с телефона ===================== */
+
+body[data-touch="1"] {
+	touch-action: none;
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-tap-highlight-color: transparent;
+	-webkit-touch-callout: none;
+	overscroll-behavior: none;
+}
+
+body[data-touch="1"] .crosshair {
+	opacity: 0.55;
+}
+
+.touch {
+	position: fixed;
+	inset: 0;
+	z-index: 46;
+	pointer-events: none;
+	--pad: max(14px, env(safe-area-inset-bottom));
+	--side: max(14px, env(safe-area-inset-left));
+	--right: max(14px, env(safe-area-inset-right));
+	--top: max(12px, env(safe-area-inset-top));
+}
+
+.touch[hidden] {
+	display: none;
+}
+
+/* Правая половина экрана — обзор пальцем. */
+.touch__look {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: 62%;
+	pointer-events: auto;
+	touch-action: none;
+}
+
+.touch__stick {
+	position: absolute;
+	left: var(--side);
+	bottom: var(--pad);
+	width: 148px;
+	height: 148px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08), rgba(6, 8, 12, 0.42));
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+	pointer-events: auto;
+	touch-action: none;
+	display: grid;
+	place-items: center;
+}
+
+.touch__knob {
+	width: 62px;
+	height: 62px;
+	border-radius: 50%;
+	background: rgba(226, 234, 245, 0.82);
+	border: 1px solid rgba(255, 255, 255, 0.5);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+	transition: transform 0.06s linear;
+}
+
+.touch__actions {
+	position: absolute;
+	right: var(--right);
+	bottom: var(--pad);
+	display: grid;
+	grid-template-columns: repeat(2, auto);
+	gap: 10px;
+	justify-items: end;
+	align-items: end;
+}
+
+.touch__top {
+	position: absolute;
+	right: var(--right);
+	top: var(--top);
+	display: flex;
+	gap: 8px;
+}
+
+.touch__belt {
+	position: absolute;
+	left: 50%;
+	bottom: var(--pad);
+	transform: translateX(-50%);
+	display: flex;
+	gap: 7px;
+}
+
+.touch__btn {
+	pointer-events: auto;
+	touch-action: none;
+	display: grid;
+	place-items: center;
+	gap: 1px;
+	width: 74px;
+	height: 74px;
+	padding: 0;
+	border-radius: 50%;
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	background: rgba(10, 13, 19, 0.58);
+	color: #e8eef8;
+	font: inherit;
+	font-size: 22px;
+	line-height: 1;
+	backdrop-filter: blur(4px);
+	box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+	transition:
+		transform 0.08s ease,
+		background 0.12s ease;
+}
+
+.touch__btn i {
+	font-size: 10px;
+	font-style: normal;
+	letter-spacing: 0.05em;
+	opacity: 0.62;
+}
+
+.touch__btn[data-on="1"] {
+	background: rgba(122, 178, 255, 0.34);
+	border-color: rgba(160, 200, 255, 0.6);
+	transform: scale(0.94);
+}
+
+.touch__btn--main {
+	width: 104px;
+	height: 104px;
+	font-size: 17px;
+	font-weight: 600;
+	background: rgba(28, 46, 74, 0.68);
+	border-color: rgba(150, 195, 255, 0.35);
+	grid-column: 2;
+	grid-row: 3;
+}
+
+.touch__btn--small {
+	width: 48px;
+	height: 48px;
+	font-size: 17px;
+}
+
+.touch__btn--slot {
+	width: 42px;
+	height: 42px;
+	font-size: 14px;
+	font-family: var(--mono, monospace);
+	background: rgba(10, 13, 19, 0.46);
+}
+
+/* Телефон в портрете: подсказываем повернуть и ужимаем интерфейс. */
+@media (max-width: 900px) and (pointer: coarse) {
+	body[data-touch="1"] .hud-top {
+		transform: scale(0.86);
+		transform-origin: top left;
+	}
+
+	body[data-touch="1"] .net-self {
+		top: max(6px, env(safe-area-inset-top));
+		padding: 3px 10px;
+	}
+
+	body[data-touch="1"] .net-chat {
+		max-width: 46vw;
+	}
+
+	body[data-touch="1"] .item-slots {
+		transform: scale(0.82);
+		transform-origin: top right;
+	}
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+	.touch__belt {
+		bottom: calc(var(--pad) + 172px);
+	}
+
+	.touch__btn--main {
+		width: 92px;
+		height: 92px;
+	}
+}
