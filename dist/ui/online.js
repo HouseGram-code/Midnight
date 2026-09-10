@@ -62,6 +62,11 @@ export class OnlinePanel {
     statusEl = requireElement("online-status");
     hintEl = requireElement("online-hint");
     pingEl = requireElement("online-ping");
+    qualityEl = requireElement("online-quality");
+    qualityDot = requireElement("online-quality-dot");
+    serverState = requireElement("online-server-state");
+    settingsToggle = requireElement("online-settings-toggle");
+    settingsPanel = requireElement("online-settings");
     loader = requireElement("online-loader");
     ring = requireElement("online-ring");
     ringLabel = requireElement("online-ring-label");
@@ -84,6 +89,11 @@ export class OnlinePanel {
         this.callbacks = callbacks;
         this.nameInput.value = this.savedName;
         void this.initOwner();
+        this.settingsToggle.addEventListener("click", () => {
+            const open = this.settingsPanel.hasAttribute("hidden");
+            setHidden(this.settingsPanel, !open);
+            this.settingsToggle.setAttribute("aria-expanded", String(open));
+        });
         this.nameInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter") {
             if (this.profileSaved)
                 this.startSearch();
@@ -335,9 +345,8 @@ export class OnlinePanel {
         this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id, player.owner)); }
     rosterRow(name, index, self, owner) { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot, label); if (owner) {
         const mark = document.createElement("b");
-        mark.className = "online-owner-icon";
-        mark.textContent = "◆";
-        mark.title = "Создатель игры";
+        mark.className = "creator-emblem creator-emblem--small";
+        mark.title = "Официальный создатель игры";
         row.append(mark);
     } return row; }
     showCodeSetup() { this.activeCode = ""; this.codeHost = false; setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true); }
@@ -364,8 +373,13 @@ export class OnlinePanel {
             return;
         session.update(dt);
         const ping = session.ping;
+        const quality = ping <= 0 ? "wait" : ping < 180 ? "good" : ping < 500 ? "ok" : "bad";
+        const qualityText = quality === "good" ? "норма" : quality === "ok" ? "нагрузка" : quality === "bad" ? "сбой" : "проверка…";
         setText(this.pingEl, ping > 0 ? `${ping} мс` : "—");
-        this.pingEl.dataset.q = ping <= 0 ? "wait" : ping < 90 ? "good" : ping < 200 ? "ok" : "bad";
+        setText(this.qualityEl, qualityText);
+        setText(this.serverState, ping > 0 ? `Основной сервер · ${ping} мс · ${qualityText}` : "Ожидаем ответ основного сервера");
+        this.pingEl.dataset.q = quality;
+        this.qualityDot.dataset.q = quality;
         if (session.phase === "searching")
             this.ring.style.setProperty("--fill", `${Math.round(this.ringValue * 360)}deg`);
         else if (this.pending) {

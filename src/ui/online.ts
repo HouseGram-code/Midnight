@@ -58,6 +58,11 @@ export class OnlinePanel {
 	private readonly statusEl = requireElement("online-status")
 	private readonly hintEl = requireElement("online-hint")
 	private readonly pingEl = requireElement("online-ping")
+	private readonly qualityEl = requireElement("online-quality")
+	private readonly qualityDot = requireElement("online-quality-dot")
+	private readonly serverState = requireElement("online-server-state")
+	private readonly settingsToggle = requireElement("online-settings-toggle") as HTMLButtonElement
+	private readonly settingsPanel = requireElement("online-settings")
 	private readonly loader = requireElement("online-loader")
 	private readonly ring = requireElement("online-ring")
 	private readonly ringLabel = requireElement("online-ring-label")
@@ -80,6 +85,11 @@ export class OnlinePanel {
 	constructor(private readonly callbacks: OnlinePanelCallbacks) {
 		this.nameInput.value = this.savedName
 		void this.initOwner()
+		this.settingsToggle.addEventListener("click", () => {
+			const open = this.settingsPanel.hasAttribute("hidden")
+			setHidden(this.settingsPanel, !open)
+			this.settingsToggle.setAttribute("aria-expanded", String(open))
+		})
 		this.nameInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter") { if (this.profileSaved) this.startSearch(); else this.saveProfile() } })
 		this.nameInput.addEventListener("keyup", (event) => event.stopPropagation())
 		this.nameInput.addEventListener("input", () => { setText(this.nameSaveButton, "Сохранить"); setHidden(this.ownerBadge, true); this.refreshButtons() })
@@ -232,7 +242,7 @@ export class OnlinePanel {
 		this.refreshButtons()
 	}
 	private renderMatchRoster(info: MatchInfo): void { this.rosterEl.replaceChildren(); for (const player of info.players) this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id, player.owner)) }
-	private rosterRow(name: string, index: number, self: boolean, owner: boolean): HTMLElement { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot, label); if (owner) { const mark = document.createElement("b"); mark.className = "online-owner-icon"; mark.textContent = "◆"; mark.title = "Создатель игры"; row.append(mark) } return row }
+	private rosterRow(name: string, index: number, self: boolean, owner: boolean): HTMLElement { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot, label); if (owner) { const mark = document.createElement("b"); mark.className = "creator-emblem creator-emblem--small"; mark.title = "Официальный создатель игры"; row.append(mark) } return row }
 	private showCodeSetup(): void { this.activeCode = ""; this.codeHost = false; setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true) }
 	private showCodeCard(code: string): void { setText(this.codeValue, code); setHidden(this.codeSetup, true); setHidden(this.codeCard, false) }
 	private async copyCode(): Promise<void> { if (!this.activeCode) return; try { await navigator.clipboard.writeText(this.activeCode); setText(this.copyCodeButton, "Скопировано"); setTimeout(() => setText(this.copyCodeButton, "Копировать"), 1400) } catch { this.setStatus(`Код комнаты: ${this.activeCode}`, "Выделите код и отправьте его друзьям.") } }
@@ -242,7 +252,14 @@ export class OnlinePanel {
 	private stopLoop(): void { if (!this.raf) return; cancelAnimationFrame(this.raf); this.raf = 0 }
 	private frame(dt: number, now: number): void {
 		const session = this.session; if (!session) return; session.update(dt)
-		const ping = session.ping; setText(this.pingEl, ping > 0 ? `${ping} мс` : "—"); this.pingEl.dataset.q = ping <= 0 ? "wait" : ping < 90 ? "good" : ping < 200 ? "ok" : "bad"
+		const ping = session.ping
+		const quality = ping <= 0 ? "wait" : ping < 180 ? "good" : ping < 500 ? "ok" : "bad"
+		const qualityText = quality === "good" ? "норма" : quality === "ok" ? "нагрузка" : quality === "bad" ? "сбой" : "проверка…"
+		setText(this.pingEl, ping > 0 ? `${ping} мс` : "—")
+		setText(this.qualityEl, qualityText)
+		setText(this.serverState, ping > 0 ? `Основной сервер · ${ping} мс · ${qualityText}` : "Ожидаем ответ основного сервера")
+		this.pingEl.dataset.q = quality
+		this.qualityDot.dataset.q = quality
 		if (session.phase === "searching") this.ring.style.setProperty("--fill", `${Math.round(this.ringValue * 360)}deg`)
 		else if (this.pending) { const left = Math.max(0, this.startAt - now); setText(this.ringLabel, `${Math.ceil(left / 1000)}`); this.ring.style.setProperty("--fill", "360deg"); if (left <= 0) { const info = this.pending; this.pending = null; this.stopLoop(); this.callbacks.onMatch(session, info) } }
 	}

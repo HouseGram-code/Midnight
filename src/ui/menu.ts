@@ -57,6 +57,23 @@ export function saveSettings(settings: GameSettings): void {
 	}
 }
 
+/** Android пробуем повернуть автоматически; iPhone показывает аккуратную подсказку. */
+function requestMobileLandscape(): void {
+	if (!matchMedia("(pointer: coarse)").matches && innerWidth > 900) return
+	document.body.dataset.landscape = "1"
+	const element = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void }
+	try {
+		if (!document.fullscreenElement) {
+			if (element.requestFullscreen) void element.requestFullscreen().catch(() => undefined)
+			else element.webkitRequestFullscreen?.()
+		}
+		const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> }
+		void orientation?.lock?.("landscape").catch(() => undefined)
+	} catch {
+		// iOS Safari не разрешает программный lock — CSS попросит повернуть устройство.
+	}
+}
+
 type Panel = "root" | "settings" | "controls" | "about" | "online"
 
 export interface MenuCallbacks {
@@ -95,11 +112,12 @@ export class Menu {
 		this.settings = loadSettings()
 		setText(this.versionEl, `версия ${GAME_VERSION}`)
 
-		this.playButton.addEventListener("click", () => this.callbacks.onPlay())
+		this.playButton.addEventListener("click", () => { requestMobileLandscape(); this.callbacks.onPlay() })
 		this.bindPanel("menu-open-settings", "settings")
 		this.bindPanel("menu-open-controls", "controls")
 		this.bindPanel("menu-open-about", "about")
 		requireElement("menu-open-online").addEventListener("click", () => {
+			requestMobileLandscape()
 			this.showPanel("online")
 			this.callbacks.onOnline()
 		})

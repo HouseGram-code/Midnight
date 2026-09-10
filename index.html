@@ -191,6 +191,7 @@
 
 				<section id="menu-online" class="menu__panel menu__panel--online" hidden>
 					<h2 class="menu__heading">Онлайн<span class="menu__beta">бета</span></h2>
+					<div class="online__beta-strip"><span>BETA</span><strong>Сетевой режим тестируется и улучшается</strong></div>
 					<p class="menu__text menu__text--tight">
 						До пяти человек в одной школе. Предметы общие, баррикада одна
 						— и учительница тоже одна на всех. Кто вышел — тот спасён.
@@ -208,8 +209,23 @@
 							spellcheck="false"
 						/>
 						<button class="button button--ghost online__name-save" id="online-name-save" type="button">Сохранить</button>
-						<span class="online__owner-badge" id="online-owner-badge" hidden title="Создатель игры"><b>◆</b> создатель</span>
+						<span class="online__owner-badge" id="online-owner-badge" hidden title="Официальный создатель игры"><span class="creator-emblem" aria-hidden="true"></span><span>Создатель</span></span>
 						<span class="online__ping" id="online-ping" data-q="wait" title="Реальный пинг до сервера">—</span>
+					</div>
+
+					<button class="online__settings-toggle" id="online-settings-toggle" type="button" aria-expanded="false"><span>⚙</span> Настройки сети <i id="online-quality-dot" data-q="wait"></i><b id="online-quality">проверка…</b></button>
+					<div class="online__settings" id="online-settings" hidden>
+						<div class="online__settings-head"><strong>Состояние сервера</strong><span id="online-server-state">Подключитесь к онлайну для проверки</span></div>
+						<div class="online__quality-legend" aria-label="Качество соединения"><span><i data-q="good"></i>норма</span><span><i data-q="ok"></i>нагрузка</span><span><i data-q="bad"></i>сбой</span></div>
+						<p class="online__settings-title">Физические регионы</p>
+						<div class="online__regions" aria-label="Выбор региона сервера">
+							<button type="button" disabled><span>🇪🇺</span>Европа<small>нужен сервер</small></button>
+							<button type="button" disabled><span>🇺🇸</span>США<small>нужен сервер</small></button>
+							<button type="button" disabled><span>🌏</span>Азия<small>нужен сервер</small></button>
+							<button type="button" disabled><span>🇧🇷</span>Юж. Америка<small>нужен сервер</small></button>
+							<button type="button" disabled><span>🇦🇺</span>Австралия<small>нужен сервер</small></button>
+						</div>
+						<p class="online__settings-note">Сейчас работает один настоящий Supabase-сервер. Остальные регионы включатся только после добавления отдельных адресов серверов.</p>
 					</div>
 
 					<div class="online__modes" role="tablist" aria-label="Способ подключения">
@@ -272,6 +288,12 @@
 					<button class="button button--primary" id="about-back" type="button">Назад</button>
 				</section>
 			</div>
+		</div>
+
+		<div class="landscape-hint" id="landscape-hint" aria-live="polite">
+			<div class="landscape-hint__phone" aria-hidden="true"><i></i></div>
+			<strong>Поверните телефон</strong>
+			<span>Для игры удобнее горизонтальный экран</span>
 		</div>
 
 		<div id="loading" class="screen">

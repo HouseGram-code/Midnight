@@ -177,6 +177,7 @@ body[data-touch="1"] .crosshair {
 }
 
 @media (orientation: portrait) and (pointer: coarse) {
+	body[data-landscape="1"] .landscape-hint { display: flex; }
 	.touch__belt {
 		bottom: calc(var(--pad) + 172px);
 	}
@@ -186,3 +187,10 @@ body[data-touch="1"] .crosshair {
 		height: 92px;
 	}
 }
+
+.landscape-hint { display: none; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; flex-direction: column; gap: 9px; padding: 28px; color: #f1f5fb; background: radial-gradient(circle at 50% 40%,rgba(50,93,136,.3),transparent 45%),rgba(4,6,10,.96); text-align: center; }
+.landscape-hint strong { font-size: 21px; }
+.landscape-hint span { color: #9ba9ba; font-size: 13px; }
+.landscape-hint__phone { position: relative; width: 74px; height: 42px; margin-bottom: 10px; border: 3px solid #b9dfff; border-radius: 10px; box-shadow: 0 0 22px rgba(100,180,255,.28); animation: turn-phone 1.8s ease-in-out infinite; }
+.landscape-hint__phone i { position: absolute; right: 4px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: #b9dfff; }
+@keyframes turn-phone { 0%,20% { transform: rotate(90deg); } 65%,100% { transform: rotate(0deg); } }

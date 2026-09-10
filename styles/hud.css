@@ -541,6 +541,22 @@
 	background: rgba(30, 22, 8, 0.78);
 	box-shadow: 0 0 16px rgba(255, 190, 40, 0.12);
 }
+.net-tag[data-owner]::before,
+.net-self[data-owner]::before {
+	content: "♛";
+	display: inline-grid;
+	place-items: center;
+	width: 17px;
+	height: 19px;
+	margin: -2px 5px -3px -3px;
+	clip-path: polygon(50% 0,94% 16%,88% 68%,50% 100%,12% 68%,6% 16%);
+	background: linear-gradient(145deg,#fff0a8,#ffc83d 42%,#9a5907);
+	color: #3b2105;
+	font: 700 11px/1 Georgia,serif;
+	text-shadow: 0 0 4px rgba(255,255,255,.7);
+	filter: drop-shadow(0 0 5px rgba(255,190,40,.5));
+}
+.net-tag[data-owner]::before { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); margin: 0; }
 .net-tag[data-owner] .net-tag__name,
 .net-self[data-owner] .net-self__name { color: #ffe39a !important; }
 

@@ -41,6 +41,26 @@ export function saveSettings(settings) {
         // Приватный режим браузера — просто играем без сохранения.
     }
 }
+/** Android пробуем повернуть автоматически; iPhone показывает аккуратную подсказку. */
+function requestMobileLandscape() {
+    if (!matchMedia("(pointer: coarse)").matches && innerWidth > 900)
+        return;
+    document.body.dataset.landscape = "1";
+    const element = document.documentElement;
+    try {
+        if (!document.fullscreenElement) {
+            if (element.requestFullscreen)
+                void element.requestFullscreen().catch(() => undefined);
+            else
+                element.webkitRequestFullscreen?.();
+        }
+        const orientation = screen.orientation;
+        void orientation?.lock?.("landscape").catch(() => undefined);
+    }
+    catch {
+        // iOS Safari не разрешает программный lock — CSS попросит повернуть устройство.
+    }
+}
 export class Menu {
     callbacks;
     screen = requireElement("menu");
@@ -67,11 +87,12 @@ export class Menu {
         this.callbacks = callbacks;
         this.settings = loadSettings();
         setText(this.versionEl, `версия ${GAME_VERSION}`);
-        this.playButton.addEventListener("click", () => this.callbacks.onPlay());
+        this.playButton.addEventListener("click", () => { requestMobileLandscape(); this.callbacks.onPlay(); });
         this.bindPanel("menu-open-settings", "settings");
         this.bindPanel("menu-open-controls", "controls");
         this.bindPanel("menu-open-about", "about");
         requireElement("menu-open-online").addEventListener("click", () => {
+            requestMobileLandscape();
             this.showPanel("online");
             this.callbacks.onOnline();
         });

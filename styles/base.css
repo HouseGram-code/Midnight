@@ -777,6 +777,10 @@ kbd {
 	max-width: 46ch;
 }
 
+.online__beta-strip { display: flex; align-items: center; gap: 9px; margin: -2px 0 10px; color: var(--ink-dim); font-size: 11px; }
+.online__beta-strip span { padding: 3px 8px; border: 1px solid rgba(114,190,255,.35); border-radius: 999px; color: #a9d8ff; background: rgba(62,135,210,.14); font: 800 10px/1 var(--mono); letter-spacing: .14em; }
+.online__beta-strip strong { font-weight: 500; }
+
 .online__row {
 	display: flex;
 	align-items: center;
@@ -825,8 +829,29 @@ kbd {
 	white-space: nowrap;
 }
 .online__owner-badge[hidden] { display: none; }
-.online__owner-badge b, .online-owner-icon { color: #ffd15c; text-shadow: 0 0 9px rgba(255, 190, 40, .75); }
-.online-owner-icon { margin-left: auto; font-size: 12px; }
+.creator-emblem { position: relative; display: inline-grid; place-items: center; width: 25px; height: 28px; flex: 0 0 auto; clip-path: polygon(50% 0, 94% 16%, 88% 68%, 50% 100%, 12% 68%, 6% 16%); background: linear-gradient(145deg,#fff0a8 0%,#ffc83d 40%,#a96408 100%); filter: drop-shadow(0 0 7px rgba(255,190,40,.6)); }
+.creator-emblem::before { content: "♛"; display: grid; place-items: center; width: 19px; height: 21px; clip-path: inherit; background: linear-gradient(160deg,#4b2603,#171006); color: #ffd76e; font: 700 14px/1 Georgia,serif; text-shadow: 0 0 5px #ffbd2e; }
+.creator-emblem::after { content: ""; position: absolute; top: 4px; left: 7px; width: 4px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.72); transform: rotate(30deg); filter: blur(.3px); }
+.creator-emblem--small { width: 22px; height: 24px; margin-left: auto; }
+.creator-emblem--small::before { width: 17px; height: 18px; font-size: 12px; }
+
+.online__settings-toggle { width: 100%; display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 9px 11px; border: 1px solid var(--panel-line); border-radius: 10px; color: var(--ink-dim); background: rgba(8,10,15,.55); font: 600 12px/1.2 var(--font); cursor: pointer; text-align: left; }
+.online__settings-toggle b { margin-left: auto; color: var(--ink); font: 600 11px/1 var(--mono); }
+.online__settings-toggle i, .online__quality-legend i { width: 8px; height: 8px; border-radius: 50%; background: #7b8493; box-shadow: 0 0 8px currentColor; }
+.online__settings-toggle i[data-q="good"], .online__quality-legend i[data-q="good"] { color: #65e79a; background: #65e79a; }
+.online__settings-toggle i[data-q="ok"], .online__quality-legend i[data-q="ok"] { color: #ffd15c; background: #ffd15c; }
+.online__settings-toggle i[data-q="bad"], .online__quality-legend i[data-q="bad"] { color: #ff6f61; background: #ff6f61; }
+.online__settings { margin: -5px 0 12px; padding: 12px; border: 1px solid rgba(120,190,255,.2); border-radius: 12px; background: rgba(6,8,13,.82); }
+.online__settings-head { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--ink); }
+.online__settings-head span { color: var(--ink-dim); text-align: right; }
+.online__quality-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 14px; color: var(--ink-dim); font-size: 11px; }
+.online__quality-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.online__settings-title { margin: 0 0 8px; color: var(--ink); font-size: 12px; font-weight: 700; }
+.online__regions { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 6px; }
+.online__regions button { min-width: 0; padding: 8px 5px; border: 1px solid var(--panel-line); border-radius: 9px; color: var(--ink-dim); background: rgba(255,255,255,.025); font: 600 10px/1.15 var(--font); }
+.online__regions button span { display: block; margin-bottom: 4px; font-size: 18px; filter: grayscale(.5); }
+.online__regions button small { display: block; margin-top: 4px; color: #b47770; font-size: 8px; }
+.online__settings-note { margin: 10px 0 0; color: var(--ink-faint); font-size: 10px; line-height: 1.4; }
 
 .online__ping {
 	min-width: 62px;
@@ -1067,6 +1092,7 @@ kbd {
 	.online__row { flex-wrap: wrap; }
 	.online__label { width: 100%; }
 	.online__owner-badge { order: 5; }
+	.online__regions { grid-template-columns: repeat(2,minmax(0,1fr)); }
 	.online__code-setup { grid-template-columns: 1fr 1fr; }
 	.online__or { display: none; }
 	.online__code-card { grid-template-columns: 1fr auto; }

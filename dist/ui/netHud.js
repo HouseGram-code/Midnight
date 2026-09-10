@@ -52,7 +52,7 @@ export class NetHud {
         }
     }
     setSelf(name, color, owner = false) {
-        setText(this.selfName, owner ? `◆ ${name}` : name);
+        setText(this.selfName, name);
         this.selfTag.toggleAttribute("data-owner", owner);
         this.selfName.style.color = color;
         this.selfTag.style.borderColor = `${color}55`;
@@ -132,8 +132,7 @@ export class NetHud {
                 }
                 continue;
             }
-            const decoratedName = item.owner ? `◆ ${item.name}` : item.name;
-            const label = item.hiding ? `${decoratedName} 🚪` : decoratedName;
+            const label = item.hiding ? `${item.name} 🚪` : item.name;
             view.el.toggleAttribute("data-owner", item.owner);
             if (view.name.textContent !== label) {
                 view.name.textContent = label;
