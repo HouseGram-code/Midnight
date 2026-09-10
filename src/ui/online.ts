@@ -58,11 +58,6 @@ export class OnlinePanel {
 	private readonly statusEl = requireElement("online-status")
 	private readonly hintEl = requireElement("online-hint")
 	private readonly pingEl = requireElement("online-ping")
-	private readonly qualityEl = requireElement("online-quality")
-	private readonly qualityDot = requireElement("online-quality-dot")
-	private readonly serverState = requireElement("online-server-state")
-	private readonly settingsToggle = requireElement("online-settings-toggle") as HTMLButtonElement
-	private readonly settingsPanel = requireElement("online-settings")
 	private readonly loader = requireElement("online-loader")
 	private readonly ring = requireElement("online-ring")
 	private readonly ringLabel = requireElement("online-ring-label")
@@ -85,11 +80,6 @@ export class OnlinePanel {
 	constructor(private readonly callbacks: OnlinePanelCallbacks) {
 		this.nameInput.value = this.savedName
 		void this.initOwner()
-		this.settingsToggle.addEventListener("click", () => {
-			const open = this.settingsPanel.hasAttribute("hidden")
-			setHidden(this.settingsPanel, !open)
-			this.settingsToggle.setAttribute("aria-expanded", String(open))
-		})
 		this.nameInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter") { if (this.profileSaved) this.startSearch(); else this.saveProfile() } })
 		this.nameInput.addEventListener("keyup", (event) => event.stopPropagation())
 		this.nameInput.addEventListener("input", () => { setText(this.nameSaveButton, "Сохранить"); setHidden(this.ownerBadge, true); this.refreshButtons() })
@@ -254,12 +244,8 @@ export class OnlinePanel {
 		const session = this.session; if (!session) return; session.update(dt)
 		const ping = session.ping
 		const quality = ping <= 0 ? "wait" : ping < 180 ? "good" : ping < 500 ? "ok" : "bad"
-		const qualityText = quality === "good" ? "норма" : quality === "ok" ? "нагрузка" : quality === "bad" ? "сбой" : "проверка…"
 		setText(this.pingEl, ping > 0 ? `${ping} мс` : "—")
-		setText(this.qualityEl, qualityText)
-		setText(this.serverState, ping > 0 ? `Основной сервер · ${ping} мс · ${qualityText}` : "Ожидаем ответ основного сервера")
 		this.pingEl.dataset.q = quality
-		this.qualityDot.dataset.q = quality
 		if (session.phase === "searching") this.ring.style.setProperty("--fill", `${Math.round(this.ringValue * 360)}deg`)
 		else if (this.pending) { const left = Math.max(0, this.startAt - now); setText(this.ringLabel, `${Math.ceil(left / 1000)}`); this.ring.style.setProperty("--fill", "360deg"); if (left <= 0) { const info = this.pending; this.pending = null; this.stopLoop(); this.callbacks.onMatch(session, info) } }
 	}
