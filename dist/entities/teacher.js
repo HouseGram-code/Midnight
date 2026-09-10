@@ -27,13 +27,13 @@ export const TEACHER = {
     sprintSpeed: 4.35,
     searchSpeed: 2,
     /** Дальность зрения и половина угла обзора. */
-    sightRange: 26,
-    sightHalfAngle: 1.25,
+    sightRange: 17,
+    sightHalfAngle: 0.78,
     /** Внутри этого радиуса заметит даже за спиной (но только если между вами нет стены). */
-    feelRange: 3,
+    feelRange: 1.8,
     /** Сколько игрок должен продержаться у неё на виду, чтобы она его заметила. */
-    noticeTime: 0.28,
-    hearRange: 14,
+    noticeTime: 0.5,
+    hearRange: 10,
     attackRange: 2.2,
     attackDuration: 0.6,
     /** Когда в анимации удара наносится урон. */
@@ -52,7 +52,7 @@ export const TEACHER = {
     screamTime: 1.2,
     screamHold: 0.35,
     /** Сколько гонится после потери игрока из виду. */
-    chaseMemory: 10,
+    chaseMemory: 4.5,
     searchTime: 8,
     /** Сколько секунд у неё есть, чтобы вытащить игрока из шкафчика. */
     hiddenHunt: 7,
@@ -239,7 +239,7 @@ export class Teacher {
         const dz = senses.playerZ - this.z;
         const distance = Math.hypot(dx, dz);
         // Включённый фонарь видно гораздо дальше.
-        const sightRange = senses.flashlightOn ? TEACHER.sightRange + 8 : TEACHER.sightRange;
+        const sightRange = senses.flashlightOn ? TEACHER.sightRange + 4 : TEACHER.sightRange;
         if (distance > sightRange)
             return false;
         if (senses.playerHidden) {
@@ -267,7 +267,9 @@ export class Teacher {
             return false;
         const distance = this.distanceTo(senses.playerX, senses.playerZ);
         const range = TEACHER.hearRange * (0.35 + 0.65 * senses.playerNoise);
-        return distance <= range;
+        // За закрытой стеной звук больше не превращается во всевидение.
+        // Через дверной проём луч остаётся свободным и бег всё ещё слышен.
+        return distance <= range && this.hasLineOfSight(senses.playerX, senses.playerZ, 1.25);
     }
     setTarget(x, z, force = false) {
         const moved = Math.hypot(x - this.targetX, z - this.targetZ);

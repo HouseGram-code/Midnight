@@ -51,8 +51,9 @@ export class NetHud {
             this.hideAllTags();
         }
     }
-    setSelf(name, color) {
-        setText(this.selfName, name);
+    setSelf(name, color, owner = false) {
+        setText(this.selfName, owner ? `◆ ${name}` : name);
+        this.selfTag.toggleAttribute("data-owner", owner);
         this.selfName.style.color = color;
         this.selfTag.style.borderColor = `${color}55`;
     }
@@ -131,7 +132,9 @@ export class NetHud {
                 }
                 continue;
             }
-            const label = item.hiding ? `${item.name} 🚪` : item.name;
+            const decoratedName = item.owner ? `◆ ${item.name}` : item.name;
+            const label = item.hiding ? `${decoratedName} 🚪` : decoratedName;
+            view.el.toggleAttribute("data-owner", item.owner);
             if (view.name.textContent !== label) {
                 view.name.textContent = label;
                 view.name.style.color = item.color;

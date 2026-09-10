@@ -44,6 +44,7 @@ export interface TeacherSnapshot {
 export interface NetPlayer {
 	id: string
 	name: string
+	owner: boolean
 	index: number
 	skin: PlayerSkin
 	x: number
@@ -106,6 +107,10 @@ export class OnlineGame {
 	private stateTimer = 0
 	private teacherTimer = 0
 	private teacherStale = 0
+	private lastStateJson = ""
+	private lastStateAt = 0
+	private lastTeacherJson = ""
+	private lastTeacherAt = 0
 	private localActive = false
 	private wasAuthority = false
 	private readonly names = new Map<string, string>()
@@ -125,6 +130,7 @@ export class OnlineGame {
 			this.players.set(player.id, {
 				id: player.id,
 				name: player.name,
+				owner: player.owner,
 				index: player.index,
 				skin: skinFor(player.index),
 				x: 17.5,
@@ -254,6 +260,7 @@ export class OnlineGame {
 			player = {
 				id,
 				name: this.nameOf(id),
+				owner: false,
 				index,
 				skin: skinFor(index),
 				x: Number(payload.x ?? 0),
@@ -328,7 +335,7 @@ export class OnlineGame {
 				(local.escaped ? 16 : 0) |
 				(local.down ? 32 : 0) |
 				(local.active ? 64 : 0)
-			this.session.room?.send("s", {
+			const packet = {
 				i: this.session.id,
 				p: this.localIndex,
 				x: Math.round(local.x * 100) / 100,
@@ -339,7 +346,14 @@ export class OnlineGame {
 				f: flags,
 				l: local.lives,
 				k: local.items,
-			})
+			}
+			const packetJson = JSON.stringify(packet)
+			const now = performance.now()
+			if (packetJson !== this.lastStateJson || now - this.lastStateAt >= 1500) {
+				this.lastStateJson = packetJson
+				this.lastStateAt = now
+				this.session.room?.send("s", packet)
+			}
 		}
 
 		const now = Date.now()
@@ -366,14 +380,20 @@ export class OnlineGame {
 		this.teacherTimer += dt
 		if (this.teacherTimer < TEACHER_INTERVAL) return
 		this.teacherTimer = 0
-		this.session.room?.send("t", {
+		const packet = {
 			x: Math.round(snapshot.x * 100) / 100,
 			z: Math.round(snapshot.z * 100) / 100,
 			a: Math.round(snapshot.yaw * 100) / 100,
 			v: Math.round(snapshot.speed * 10) / 10,
 			o: snapshot.visible ? 1 : 0,
 			r: Math.round(snapshot.alert * 100) / 100,
-		})
+		}
+		const packetJson = JSON.stringify(packet)
+		const now = performance.now()
+		if (packetJson === this.lastTeacherJson && now - this.lastTeacherAt < 1500) return
+		this.lastTeacherJson = packetJson
+		this.lastTeacherAt = now
+		this.session.room?.send("t", packet)
 	}
 
 	/**

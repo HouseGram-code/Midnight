@@ -536,6 +536,14 @@
 	white-space: nowrap;
 }
 
+.net-tag[data-owner] {
+	border-color: rgba(255, 209, 92, 0.48);
+	background: rgba(30, 22, 8, 0.78);
+	box-shadow: 0 0 16px rgba(255, 190, 40, 0.12);
+}
+.net-tag[data-owner] .net-tag__name,
+.net-self[data-owner] .net-self__name { color: #ffe39a !important; }
+
 .net-tag__bar {
 	display: block;
 	margin-top: 3px;

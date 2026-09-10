@@ -7,6 +7,9 @@ import { skinFor } from "../net/remote.js"
 import { requireElement, setHidden, setText } from "./dom.js"
 
 const NAME_KEY = "school3d.name.v1"
+const OWNER_KEY = "school3d.owner.v1"
+const OWNER_NAME = "goh"
+const OWNER_SETUP_HASH = "244c2a71139c6d6ba5b51cdcc5ce6fbed99013747dc89b14acdf41716bbac17d"
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 type OnlineMode = "random" | "code"
 
@@ -19,6 +22,14 @@ export interface OnlinePanelCallbacks {
 
 function storedName(): string { try { return localStorage.getItem(NAME_KEY) ?? "" } catch { return "" } }
 function rememberName(name: string): void { try { localStorage.setItem(NAME_KEY, name) } catch { /* ignore */ } }
+function storedOwnerToken(): string { try { return localStorage.getItem(OWNER_KEY) ?? "" } catch { return "" } }
+function rememberOwnerToken(token: string): void { try { localStorage.setItem(OWNER_KEY, token) } catch { /* ignore */ } }
+function cleanUserName(raw: string): string { return raw.replace(/\s+/g, " ").trim().slice(0, 14) }
+function isOwnerName(raw: string): boolean { return raw.normalize("NFKC").replace(/\s+/g, "").toLowerCase() === OWNER_NAME }
+async function sha256(value: string): Promise<string> {
+	const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))
+	return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+}
 function roomCode(): string {
 	const bytes = new Uint8Array(6)
 	crypto.getRandomValues(bytes)
@@ -28,7 +39,11 @@ function cleanCode(raw: string): string { return raw.toUpperCase().replace(/[^A-
 
 export class OnlinePanel {
 	private readonly nameInput = requireElement("online-name") as HTMLInputElement
+	private readonly nameSaveButton = requireElement("online-name-save") as HTMLButtonElement
+	private readonly ownerBadge = requireElement("online-owner-badge")
 	private readonly startButton = requireElement("online-start") as HTMLButtonElement
+	private readonly createRoomButton = requireElement("online-create-room") as HTMLButtonElement
+	private readonly joinRoomButton = requireElement("online-join-room") as HTMLButtonElement
 	private readonly roomStartButton = requireElement("online-room-start") as HTMLButtonElement
 	private readonly cancelButton = requireElement("online-cancel") as HTMLButtonElement
 	private readonly soloButton = requireElement("online-solo") as HTMLButtonElement
@@ -59,18 +74,22 @@ export class OnlinePanel {
 	private startAt = 0
 	private pending: MatchInfo | null = null
 	private ringValue = 0
+	private savedName = storedName()
+	private ownerAccess = false
 
 	constructor(private readonly callbacks: OnlinePanelCallbacks) {
-		this.nameInput.value = storedName()
-		this.nameInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter") this.startSearch() })
+		this.nameInput.value = this.savedName
+		void this.initOwner()
+		this.nameInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter") { if (this.profileSaved) this.startSearch(); else this.saveProfile() } })
 		this.nameInput.addEventListener("keyup", (event) => event.stopPropagation())
-		this.nameInput.addEventListener("input", () => { const name = this.nameInput.value.trim(); rememberName(name); this.session?.setName(name); this.refreshButtons() })
+		this.nameInput.addEventListener("input", () => { setText(this.nameSaveButton, "Сохранить"); setHidden(this.ownerBadge, true); this.refreshButtons() })
+		this.nameSaveButton.addEventListener("click", () => { this.callbacks.onClick(); this.saveProfile() })
 		this.roomCodeInput.addEventListener("input", () => { this.roomCodeInput.value = cleanCode(this.roomCodeInput.value) })
 		this.roomCodeInput.addEventListener("keydown", (event) => { event.stopPropagation(); if (event.key === "Enter") void this.joinCodeRoom() })
 		this.randomModeButton.addEventListener("click", () => this.switchMode("random"))
 		this.codeModeButton.addEventListener("click", () => this.switchMode("code"))
-		requireElement("online-create-room").addEventListener("click", () => void this.createCodeRoom())
-		requireElement("online-join-room").addEventListener("click", () => void this.joinCodeRoom())
+		this.createRoomButton.addEventListener("click", () => void this.createCodeRoom())
+		this.joinRoomButton.addEventListener("click", () => void this.joinCodeRoom())
 		this.copyCodeButton.addEventListener("click", () => void this.copyCode())
 		this.roomStartButton.addEventListener("click", () => { this.callbacks.onClick(); if (!this.session?.startCodeMatch()) this.setStatus("Нужен ещё игрок", "Друг должен войти по коду комнаты.") })
 		this.startButton.addEventListener("click", () => { this.callbacks.onClick(); this.startSearch() })
@@ -85,6 +104,8 @@ export class OnlinePanel {
 	}
 
 	get isSearching(): boolean { return this.session?.phase === "searching" }
+	private get profileSaved(): boolean { return this.savedName.length >= 2 && cleanUserName(this.nameInput.value) === this.savedName }
+	private get ownerActive(): boolean { return this.ownerAccess && isOwnerName(this.savedName) }
 	open(): void { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop() }
 	close(): void { this.stopLoop() }
 	reset(): void { this.leaveSession(); this.pending = null; this.startAt = 0; this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren(); this.showCodeSetup(); this.setStatus("Готовы к следующей игре", "Выберите случайную игру или комнату по коду."); this.refreshButtons() }
@@ -101,18 +122,19 @@ export class OnlinePanel {
 		this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren()
 		if (mode === "random") { this.setStatus("Случайная игра", "Введите имя и нажмите «Начать игру онлайн».") }
 		else { this.showCodeSetup(); this.setStatus("Комната по коду", "Создайте комнату или введите код друга.") }
+		if (!this.profileSaved) this.setStatus("Регистрация", "Введите имя и нажмите «Сохранить». Это всё — пароль не нужен.")
 		this.refreshButtons()
 	}
 
 	private makeClient(): NetClient { return this.mock ? new LoopbackClient(35) : new RealtimeClient() }
 	private makeSession(client: NetClient): OnlineSession {
-		return new OnlineSession(client, this.nameInput.value.trim() || "Игрок", {
+		return new OnlineSession(client, this.savedName || "Игрок", {
 			onPhase: (phase, detail) => { if (phase === "connecting") this.loader.dataset.mode = "connect"; if (detail) this.setStatus(detail, ""); this.refreshButtons() },
 			onRoster: (members) => this.renderRoster(members),
 			onCountdown: (left, found) => this.onCountdown(left, found),
 			onAlone: () => { if (this.mode === "random") { setHidden(this.soloButton, false); this.setStatus("Пока никого нет…", "Продолжаем искать. Можно начать одному или позвать друга.") } },
 			onMatch: (info) => this.onMatchFound(info),
-		})
+		}, this.ownerActive)
 	}
 
 	private async ensureRandomSession(): Promise<void> {
@@ -148,7 +170,45 @@ export class OnlinePanel {
 		this.session.setName(this.nameInput.value.trim()); this.session.startSearch(); this.loader.dataset.mode = "search"; setHidden(this.searchBox, false); setHidden(this.soloButton, true)
 		this.setStatus("Собираем игроков…", `Максимум ${MAX_PLAYERS}. Начнём раньше, если комната заполнится.`); this.refreshButtons()
 	}
-	private validName(): boolean { const name = this.nameInput.value.trim(); if (name.length >= 2) { rememberName(name); return true }; this.setStatus("Нужно имя", "Минимум 2 символа."); this.nameInput.focus(); return false }
+	private validName(): boolean {
+		if (this.profileSaved) return true
+		this.setStatus("Сначала сохраните имя", "Введите имя и нажмите кнопку «Сохранить».")
+		this.nameInput.focus()
+		return false
+	}
+	private saveProfile(): boolean {
+		const name = cleanUserName(this.nameInput.value)
+		if (name.length < 2) { this.setStatus("Нужно имя", "Минимум 2 символа."); this.nameInput.focus(); return false }
+		if (isOwnerName(name) && !this.ownerAccess) {
+			this.setStatus("Имя goh занято", "Это имя навсегда закреплено за создателем игры.")
+			this.nameInput.select()
+			return false
+		}
+		this.savedName = name
+		this.nameInput.value = name
+		rememberName(name)
+		this.session?.setName(name)
+		setText(this.nameSaveButton, "Сохранено")
+		setHidden(this.ownerBadge, !this.ownerActive)
+		this.setStatus(this.ownerActive ? "Профиль создателя сохранён" : "Имя сохранено", "Теперь можно заходить в онлайн.")
+		this.refreshButtons()
+		return true
+	}
+	private async initOwner(): Promise<void> {
+		let token = storedOwnerToken()
+		const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""))
+		const candidate = hashParams.get("owner") ?? ""
+		try {
+			if (candidate && await sha256(candidate) === OWNER_SETUP_HASH) {
+				token = candidate
+				rememberOwnerToken(candidate)
+				history.replaceState(null, "", `${location.pathname}${location.search}`)
+			}
+			this.ownerAccess = Boolean(token) && await sha256(token) === OWNER_SETUP_HASH
+		} catch { this.ownerAccess = false }
+		setHidden(this.ownerBadge, !(this.ownerAccess && isOwnerName(this.savedName)))
+		this.refreshButtons()
+	}
 	private showConnectionError(): void { this.loader.dataset.mode = "error"; this.setStatus("Сервер не отвечает", `${this.client?.lastError || "Не вышло подключиться"}. Попробуйте ещё раз.`); this.refreshButtons() }
 
 	private onCountdown(left: number, found: number): void {
@@ -167,17 +227,17 @@ export class OnlinePanel {
 	private renderRoster(members: LobbyMember[]): void {
 		if (this.pending) return
 		const searching = members.filter((member) => member.searching && !member.playing); this.rosterEl.replaceChildren()
-		searching.slice(0, MAX_PLAYERS).forEach((member, index) => this.rosterEl.append(this.rosterRow(member.name, index, member.id === this.session?.id)))
+		searching.slice(0, MAX_PLAYERS).forEach((member, index) => this.rosterEl.append(this.rosterRow(member.name, index, member.id === this.session?.id, member.owner)))
 		for (let i = searching.length; i < MAX_PLAYERS; i += 1) { const empty = document.createElement("div"); empty.className = "online-slot online-slot--empty"; empty.textContent = "свободно"; this.rosterEl.append(empty) }
 		this.refreshButtons()
 	}
-	private renderMatchRoster(info: MatchInfo): void { this.rosterEl.replaceChildren(); for (const player of info.players) this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id)) }
-	private rosterRow(name: string, index: number, self: boolean): HTMLElement { const row = document.createElement("div"); row.className = self ? "online-slot online-slot--me" : "online-slot"; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot, label); return row }
+	private renderMatchRoster(info: MatchInfo): void { this.rosterEl.replaceChildren(); for (const player of info.players) this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id, player.owner)) }
+	private rosterRow(name: string, index: number, self: boolean, owner: boolean): HTMLElement { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot, label); if (owner) { const mark = document.createElement("b"); mark.className = "online-owner-icon"; mark.textContent = "◆"; mark.title = "Создатель игры"; row.append(mark) } return row }
 	private showCodeSetup(): void { this.activeCode = ""; this.codeHost = false; setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true) }
 	private showCodeCard(code: string): void { setText(this.codeValue, code); setHidden(this.codeSetup, true); setHidden(this.codeCard, false) }
 	private async copyCode(): Promise<void> { if (!this.activeCode) return; try { await navigator.clipboard.writeText(this.activeCode); setText(this.copyCodeButton, "Скопировано"); setTimeout(() => setText(this.copyCodeButton, "Копировать"), 1400) } catch { this.setStatus(`Код комнаты: ${this.activeCode}`, "Выделите код и отправьте его друзьям.") } }
 	private setStatus(title: string, hint: string): void { setText(this.statusEl, title); setText(this.hintEl, hint) }
-	private refreshButtons(): void { const phase = this.session?.phase ?? "idle"; const searching = phase === "searching"; const busy = phase === "connecting" || phase === "found" || phase === "match"; this.startButton.disabled = this.mode !== "random" || searching || busy; this.roomStartButton.disabled = !this.codeHost || (this.session?.searchers.length ?? 0) < MIN_PLAYERS || phase !== "searching"; if (this.mode === "random") setHidden(this.cancelButton, !searching) }
+	private refreshButtons(): void { const phase = this.session?.phase ?? "idle"; const searching = phase === "searching"; const busy = phase === "connecting" || phase === "found" || phase === "match"; const noProfile = !this.profileSaved; this.startButton.disabled = noProfile || this.mode !== "random" || searching || busy; this.createRoomButton.disabled = noProfile || busy; this.joinRoomButton.disabled = noProfile || busy; this.roomStartButton.disabled = !this.codeHost || (this.session?.searchers.length ?? 0) < MIN_PLAYERS || phase !== "searching"; if (this.mode === "random") setHidden(this.cancelButton, !searching) }
 	private startLoop(): void { if (this.raf) return; this.lastFrame = performance.now(); const step = (now: number): void => { this.raf = requestAnimationFrame(step); const dt = Math.min(0.25, (now - this.lastFrame) / 1000); this.lastFrame = now; this.frame(dt, now) }; this.raf = requestAnimationFrame(step) }
 	private stopLoop(): void { if (!this.raf) return; cancelAnimationFrame(this.raf); this.raf = 0 }
 	private frame(dt: number, now: number): void {

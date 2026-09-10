@@ -20,12 +20,13 @@ export const MIN_PLAYERS = 2
 export const SEARCH_SECONDS = 25
 
 /** Как часто шлём своё положение и учительницу. */
-export const STATE_HZ = 14
-export const TEACHER_HZ = 14
+export const STATE_HZ = 8
+export const TEACHER_HZ = 6
 
 export interface LobbyMember {
 	id: string
 	name: string
+	owner: boolean
 	searching: boolean
 	playing: boolean
 	since: number
@@ -34,6 +35,7 @@ export interface LobbyMember {
 export interface MatchPlayer {
 	id: string
 	name: string
+	owner: boolean
 	index: number
 }
 
@@ -87,6 +89,7 @@ export class OnlineSession {
 		readonly client: NetClient,
 		name: string,
 		private readonly events: SessionEvents = {},
+		readonly owner = false,
 	) {
 		this.id = client.id
 		this.name = cleanName(name)
@@ -168,6 +171,7 @@ export class OnlineSession {
 		this.lobby?.track({
 			id: this.id,
 			name: this.name,
+			owner: this.owner,
 			searching: this.phase === "searching" || this.phase === "found",
 			playing: this.phase === "match",
 			since: this.searchStart,
@@ -182,6 +186,7 @@ export class OnlineSession {
 			list.push({
 				id,
 				name: typeof meta.name === "string" ? meta.name : "Игрок",
+				owner: Boolean(meta.owner) && String(meta.name ?? "").trim().toLowerCase() === "goh",
 				searching: Boolean(meta.searching),
 				playing: Boolean(meta.playing),
 				since: typeof meta.since === "number" ? meta.since : 0,
@@ -231,7 +236,7 @@ export class OnlineSession {
 		const info: MatchInfo = {
 			room: `school3d-room-${this.codeRoom}-${randomId()}`,
 			host: this.id,
-			players: group.map((member, index) => ({ id: member.id, name: member.name, index })),
+			players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
 			startIn: 3200,
 		}
 		this.lobby?.send("match", info as unknown as NetPayload)
@@ -257,7 +262,7 @@ export class OnlineSession {
 		const info: MatchInfo = {
 			room: `school3d-room-${randomId()}`,
 			host: this.id,
-			players: group.map((member, index) => ({ id: member.id, name: member.name, index })),
+			players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
 			startIn: 3200,
 		}
 		this.lobby?.send("match", info as unknown as NetPayload)
@@ -275,6 +280,7 @@ export class OnlineSession {
 			players.push({
 				id: entry.id,
 				name: typeof entry.name === "string" ? entry.name : "Игрок",
+				owner: Boolean(entry.owner) && String(entry.name ?? "").trim().toLowerCase() === "goh",
 				index: typeof entry.index === "number" ? entry.index : players.length,
 			})
 		}
@@ -294,7 +300,7 @@ export class OnlineSession {
 	private joinRoom(info: MatchInfo): void {
 		const channel = this.client.channel(info.room)
 		this.room = channel
-		channel.track({ id: this.id, name: this.name })
+		channel.track({ id: this.id, name: this.name, owner: this.owner })
 		channel.on("c", (payload) => {
 			const text = typeof payload.m === "string" ? payload.m : ""
 			if (!text) return

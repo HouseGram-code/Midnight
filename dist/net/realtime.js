@@ -21,8 +21,10 @@ export function isMockMode() {
     return location.search.includes("netmock=1");
 }
 const JOIN_TIMEOUT = 9000;
-const HEARTBEAT_MS = 2000;
-const MAX_MISSED = 3;
+// Phoenix рекомендует редкий keep-alive. Две секунды создавали лишнюю
+// нагрузку и могли сами провоцировать reconnect-шторм при плохом интернете.
+const HEARTBEAT_MS = 25000;
+const MAX_MISSED = 2;
 const MAX_BACKOFF = 6000;
 export function randomId() {
     const bytes = new Uint8Array(8);

@@ -514,6 +514,7 @@ export class Game {
 				tags.push({
 					id: player.id,
 					name: player.name,
+					owner: player.owner,
 					color: player.skin.tag,
 					x: 0,
 					y: 0,
@@ -545,6 +546,7 @@ export class Game {
 			tags.push({
 				id: player.id,
 				name: player.name,
+				owner: player.owner,
 				color: player.skin.tag,
 				x: point.x,
 				y: point.y,

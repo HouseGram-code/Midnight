@@ -11,6 +11,7 @@ import { requireElement, setHidden, setText } from "./dom.js"
 export interface TagItem {
 	id: string
 	name: string
+	owner: boolean
 	color: string
 	x: number
 	y: number
@@ -84,8 +85,9 @@ export class NetHud {
 		}
 	}
 
-	setSelf(name: string, color: string): void {
-		setText(this.selfName, name)
+	setSelf(name: string, color: string, owner = false): void {
+		setText(this.selfName, owner ? `◆ ${name}` : name)
+		this.selfTag.toggleAttribute("data-owner", owner)
 		this.selfName.style.color = color
 		this.selfTag.style.borderColor = `${color}55`
 	}
@@ -166,7 +168,9 @@ export class NetHud {
 				continue
 			}
 
-			const label = item.hiding ? `${item.name} 🚪` : item.name
+			const decoratedName = item.owner ? `◆ ${item.name}` : item.name
+			const label = item.hiding ? `${decoratedName} 🚪` : decoratedName
+			view.el.toggleAttribute("data-owner", item.owner)
 			if (view.name.textContent !== label) {
 				view.name.textContent = label
 				view.name.style.color = item.color

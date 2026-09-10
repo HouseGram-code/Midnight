@@ -809,6 +809,25 @@ kbd {
 	box-shadow: 0 0 0 3px rgba(80, 160, 240, 0.12);
 }
 
+.online__name-save { min-height: 39px; padding: 8px 12px; }
+.online__owner-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 9px;
+	border: 1px solid rgba(255, 209, 92, 0.42);
+	border-radius: 999px;
+	background: linear-gradient(135deg, rgba(255, 209, 92, 0.18), rgba(112, 72, 12, 0.12));
+	color: #ffe39a;
+	font: 700 11px/1 var(--font);
+	letter-spacing: .04em;
+	box-shadow: 0 0 18px rgba(255, 193, 55, 0.12), inset 0 1px rgba(255,255,255,.08);
+	white-space: nowrap;
+}
+.online__owner-badge[hidden] { display: none; }
+.online__owner-badge b, .online-owner-icon { color: #ffd15c; text-shadow: 0 0 9px rgba(255, 190, 40, .75); }
+.online-owner-icon { margin-left: auto; font-size: 12px; }
+
 .online__ping {
 	min-width: 62px;
 	text-align: right;
@@ -1020,6 +1039,7 @@ kbd {
 .online-slot--me {
 	border-color: rgba(150, 210, 255, 0.45);
 }
+.online-slot--owner { border-color: rgba(255, 209, 92, 0.42); background: rgba(74, 53, 16, 0.2); }
 
 .online-slot--empty {
 	color: var(--ink-faint);
@@ -1044,6 +1064,9 @@ kbd {
 }
 
 @media (max-width: 620px) {
+	.online__row { flex-wrap: wrap; }
+	.online__label { width: 100%; }
+	.online__owner-badge { order: 5; }
 	.online__code-setup { grid-template-columns: 1fr 1fr; }
 	.online__or { display: none; }
 	.online__code-card { grid-template-columns: 1fr auto; }
