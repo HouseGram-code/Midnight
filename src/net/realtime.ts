@@ -99,6 +99,8 @@ interface SocketMessage {
 	event: string
 	payload: NetPayload
 	ref?: string
+	/** Phoenix protocol v1: ссылка на phx_join этого канала. */
+	join_ref?: string
 }
 
 class Channel implements NetChannel {
@@ -110,6 +112,7 @@ class Channel implements NetChannel {
 	private meta: NetPayload | null = null
 	private joined = false
 	private left = false
+	private joinRef = ""
 	private resolveReady: ((ok: boolean) => void) | null = null
 	private readonly readyPromise = new Promise<boolean>((resolve) => {
 		this.resolveReady = resolve
@@ -154,6 +157,7 @@ class Channel implements NetChannel {
 			event: "broadcast",
 			payload: { type: "broadcast", event, payload },
 			ref: this.client.nextRef(),
+			join_ref: this.joinRef,
 		})
 	}
 
@@ -165,6 +169,7 @@ class Channel implements NetChannel {
 			event: "presence",
 			payload: { type: "presence", event: "track", payload: meta },
 			ref: this.client.nextRef(),
+			join_ref: this.joinRef,
 		})
 	}
 
@@ -179,6 +184,7 @@ class Channel implements NetChannel {
 				event: "phx_leave",
 				payload: {},
 				ref: this.client.nextRef(),
+				join_ref: this.joinRef,
 			})
 		}
 		this.client.dropChannel(this.name)
@@ -188,6 +194,7 @@ class Channel implements NetChannel {
 	join(): void {
 		if (this.left) return
 		this.joined = false
+		this.joinRef = this.client.nextRef()
 		this.client.push({
 			topic: this.topic,
 			event: "phx_join",
@@ -199,13 +206,16 @@ class Channel implements NetChannel {
 				},
 				access_token: SUPABASE_KEY,
 			},
-			ref: this.client.nextRef(),
+			ref: this.joinRef,
+			join_ref: this.joinRef,
 		})
 	}
 
 	handle(message: SocketMessage): void {
 		switch (message.event) {
 			case "phx_reply": {
+				// Ответы на track/broadcast не являются подтверждением входа.
+				if (!this.joined && message.ref !== this.joinRef) return
 				const status = message.payload.status
 				if (status !== "ok") {
 					const response = message.payload.response
@@ -464,6 +474,7 @@ export class RealtimeClient implements NetClient {
 						? (parsed.payload as NetPayload)
 						: {},
 				ref: typeof parsed.ref === "string" ? parsed.ref : undefined,
+				join_ref: typeof parsed.join_ref === "string" ? parsed.join_ref : undefined,
 			}
 		} catch {
 			return

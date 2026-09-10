@@ -71,6 +71,7 @@ class Channel {
     meta = null;
     joined = false;
     left = false;
+    joinRef = "";
     resolveReady = null;
     readyPromise = new Promise((resolve) => {
         this.resolveReady = resolve;
@@ -114,6 +115,7 @@ class Channel {
             event: "broadcast",
             payload: { type: "broadcast", event, payload },
             ref: this.client.nextRef(),
+            join_ref: this.joinRef,
         });
     }
     track(meta) {
@@ -125,6 +127,7 @@ class Channel {
             event: "presence",
             payload: { type: "presence", event: "track", payload: meta },
             ref: this.client.nextRef(),
+            join_ref: this.joinRef,
         });
     }
     leave() {
@@ -138,6 +141,7 @@ class Channel {
                 event: "phx_leave",
                 payload: {},
                 ref: this.client.nextRef(),
+                join_ref: this.joinRef,
             });
         }
         this.client.dropChannel(this.name);
@@ -147,6 +151,7 @@ class Channel {
         if (this.left)
             return;
         this.joined = false;
+        this.joinRef = this.client.nextRef();
         this.client.push({
             topic: this.topic,
             event: "phx_join",
@@ -158,12 +163,16 @@ class Channel {
                 },
                 access_token: SUPABASE_KEY,
             },
-            ref: this.client.nextRef(),
+            ref: this.joinRef,
+            join_ref: this.joinRef,
         });
     }
     handle(message) {
         switch (message.event) {
             case "phx_reply": {
+                // Ответы на track/broadcast не являются подтверждением входа.
+                if (!this.joined && message.ref !== this.joinRef)
+                    return;
                 const status = message.payload.status;
                 if (status !== "ok") {
                     const response = message.payload.response;
@@ -434,6 +443,7 @@ export class RealtimeClient {
                     ? parsed.payload
                     : {},
                 ref: typeof parsed.ref === "string" ? parsed.ref : undefined,
+                join_ref: typeof parsed.join_ref === "string" ? parsed.join_ref : undefined,
             };
         }
         catch {
