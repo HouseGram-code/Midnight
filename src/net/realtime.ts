@@ -26,6 +26,8 @@ export interface NetChannel {
 	on(event: string, handler: NetHandler): void
 	/** Список участников изменился. */
 	onPresence(handler: () => void): void
+	/** Сервер подтвердил вход в канал. */
+	ready(): Promise<boolean>
 	send(event: string, payload: NetPayload): void
 	/** Рассказать о себе (имя, статус поиска и т.д.). */
 	track(meta: NetPayload): void
@@ -107,6 +109,10 @@ class Channel implements NetChannel {
 	private meta: NetPayload | null = null
 	private joined = false
 	private left = false
+	private resolveReady: ((ok: boolean) => void) | null = null
+	private readonly readyPromise = new Promise<boolean>((resolve) => {
+		this.resolveReady = resolve
+	})
 
 	constructor(
 		readonly name: string,
@@ -123,6 +129,12 @@ class Channel implements NetChannel {
 
 	onPresence(handler: () => void): void {
 		this.presenceHandlers.push(handler)
+	}
+
+	ready(): Promise<boolean> {
+		if (this.joined) return Promise.resolve(true)
+		if (this.left) return Promise.resolve(false)
+		return this.readyPromise
 	}
 
 	presence(): Map<string, NetPayload> {
@@ -158,6 +170,8 @@ class Channel implements NetChannel {
 	leave(): void {
 		this.left = true
 		this.joined = false
+		this.resolveReady?.(false)
+		this.resolveReady = null
 		if (this.client.status === "open") {
 			this.client.push({
 				topic: this.topic,
@@ -182,7 +196,6 @@ class Channel implements NetChannel {
 					presence: { key: this.client.id, enabled: true },
 					private: false,
 				},
-				access_token: SUPABASE_KEY,
 			},
 			ref: this.client.nextRef(),
 		})
@@ -199,10 +212,14 @@ class Channel implements NetChannel {
 							? String((response as { reason?: unknown }).reason ?? "")
 							: ""
 					if (reason) this.client.noteError(`Сервер отказал во входе в канал: ${reason}`)
+					this.resolveReady?.(false)
+					this.resolveReady = null
 					return
 				}
 				if (this.joined) return
 				this.joined = true
+				this.resolveReady?.(true)
+				this.resolveReady = null
 				if (this.meta) this.track(this.meta)
 				const pending = this.queue.splice(0, this.queue.length)
 				for (const item of pending) this.send(item.event, item.payload)
@@ -326,18 +343,32 @@ export class RealtimeClient implements NetClient {
 			this.socket = socket
 			const timer = setTimeout(() => {
 				if (settled) return
-				try {
-					socket.close()
-				} catch {
-					// уже закрыт
-				}
+					// Не вызываем close() у CONNECTING-сокета: Chrome пишет ложную
+					// ошибку «closed before the connection is established».
+					if (socket.readyState !== WebSocket.CONNECTING) {
+						try {
+							socket.close()
+						} catch {
+							// уже закрыт
+						}
+					}
+					if (this.socket === socket) this.socket = null
 				this.status = "closed"
 				this.lastError = `Сервер не ответил за ${Math.round(JOIN_TIMEOUT / 1000)} с`
 				finish(false)
 			}, JOIN_TIMEOUT)
 
 			socket.onopen = () => {
-				clearTimeout(timer)
+					clearTimeout(timer)
+					if (this.closedByUser || this.socket !== socket) {
+						try {
+							socket.close(1000, "cancelled")
+						} catch {
+							// уже закрыт
+						}
+						finish(false)
+						return
+					}
 				this.status = "open"
 				this.attempt = 0
 				this.missed = 0
@@ -486,8 +517,9 @@ export class RealtimeClient implements NetClient {
 		this.socket = null
 		this.status = "closed"
 		if (!socket) return
+		if (socket.readyState === WebSocket.CONNECTING) return
 		try {
-			socket.close()
+			socket.close(1000, "client closed")
 		} catch {
 			// уже закрыт
 		}
@@ -624,6 +656,10 @@ class LoopChannel implements NetChannel {
 
 	onPresence(handler: () => void): void {
 		this.presenceHandlers.push(handler)
+	}
+
+	ready(): Promise<boolean> {
+		return Promise.resolve(!this.left)
 	}
 
 	presence(): Map<string, NetPayload> {

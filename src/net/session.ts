@@ -138,6 +138,16 @@ export class OnlineSession {
 		lobby.on("match", (payload) => this.handleMatch(payload))
 		lobby.on("hi", () => this.publish())
 		this.publish()
+		const joined = await Promise.race([
+			lobby.ready(),
+			new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 8000)),
+		])
+		if (!joined) {
+			lobby.leave()
+			this.lobby = null
+			this.setPhase("idle", this.client.lastError || "Сервер не подтвердил вход в онлайн-комнату")
+			return false
+		}
 		this.setPhase("lobby")
 		// Просим остальных переслать своё presence — быстрее собирается список.
 		setTimeout(() => lobby.send("hi", { id: this.id }), 250)

@@ -90,7 +90,7 @@ export class OnlinePanel {
         requireElement("online-back").addEventListener("click", () => { this.callbacks.onClick(); this.leaveSession(); this.callbacks.onBack(); });
     }
     get isSearching() { return this.session?.phase === "searching"; }
-    open() { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop(); void this.ensureRandomSession(); }
+    open() { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop(); }
     close() { this.stopLoop(); }
     reset() { this.leaveSession(); this.pending = null; this.startAt = 0; this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren(); this.showCodeSetup(); this.setStatus("Готовы к следующей игре", "Выберите случайную игру или комнату по коду."); this.refreshButtons(); }
     switchMode(mode, click = true) {
@@ -112,8 +112,7 @@ export class OnlinePanel {
         this.loader.dataset.mode = "idle";
         this.rosterEl.replaceChildren();
         if (mode === "random") {
-            this.setStatus("Подключаемся к серверу…", "Затем можно искать случайных игроков.");
-            void this.ensureRandomSession();
+            this.setStatus("Случайная игра", "Введите имя и нажмите «Начать игру онлайн».");
         }
         else {
             this.showCodeSetup();

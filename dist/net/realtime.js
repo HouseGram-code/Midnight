@@ -70,6 +70,10 @@ class Channel {
     meta = null;
     joined = false;
     left = false;
+    resolveReady = null;
+    readyPromise = new Promise((resolve) => {
+        this.resolveReady = resolve;
+    });
     constructor(name, client) {
         this.name = name;
         this.client = client;
@@ -84,6 +88,13 @@ class Channel {
     }
     onPresence(handler) {
         this.presenceHandlers.push(handler);
+    }
+    ready() {
+        if (this.joined)
+            return Promise.resolve(true);
+        if (this.left)
+            return Promise.resolve(false);
+        return this.readyPromise;
     }
     presence() {
         return this.members;
@@ -118,6 +129,8 @@ class Channel {
     leave() {
         this.left = true;
         this.joined = false;
+        this.resolveReady?.(false);
+        this.resolveReady = null;
         if (this.client.status === "open") {
             this.client.push({
                 topic: this.topic,
@@ -142,7 +155,6 @@ class Channel {
                     presence: { key: this.client.id, enabled: true },
                     private: false,
                 },
-                access_token: SUPABASE_KEY,
             },
             ref: this.client.nextRef(),
         });
@@ -158,11 +170,15 @@ class Channel {
                         : "";
                     if (reason)
                         this.client.noteError(`Сервер отказал во входе в канал: ${reason}`);
+                    this.resolveReady?.(false);
+                    this.resolveReady = null;
                     return;
                 }
                 if (this.joined)
                     return;
                 this.joined = true;
+                this.resolveReady?.(true);
+                this.resolveReady = null;
                 if (this.meta)
                     this.track(this.meta);
                 const pending = this.queue.splice(0, this.queue.length);
@@ -292,18 +308,34 @@ export class RealtimeClient {
             const timer = setTimeout(() => {
                 if (settled)
                     return;
-                try {
-                    socket.close();
+                // Не вызываем close() у CONNECTING-сокета: Chrome пишет ложную
+                // ошибку «closed before the connection is established».
+                if (socket.readyState !== WebSocket.CONNECTING) {
+                    try {
+                        socket.close();
+                    }
+                    catch {
+                        // уже закрыт
+                    }
                 }
-                catch {
-                    // уже закрыт
-                }
+                if (this.socket === socket)
+                    this.socket = null;
                 this.status = "closed";
                 this.lastError = `Сервер не ответил за ${Math.round(JOIN_TIMEOUT / 1000)} с`;
                 finish(false);
             }, JOIN_TIMEOUT);
             socket.onopen = () => {
                 clearTimeout(timer);
+                if (this.closedByUser || this.socket !== socket) {
+                    try {
+                        socket.close(1000, "cancelled");
+                    }
+                    catch {
+                        // уже закрыт
+                    }
+                    finish(false);
+                    return;
+                }
                 this.status = "open";
                 this.attempt = 0;
                 this.missed = 0;
@@ -456,8 +488,10 @@ export class RealtimeClient {
         this.status = "closed";
         if (!socket)
             return;
+        if (socket.readyState === WebSocket.CONNECTING)
+            return;
         try {
-            socket.close();
+            socket.close(1000, "client closed");
         }
         catch {
             // уже закрыт
@@ -581,6 +615,9 @@ class LoopChannel {
     }
     onPresence(handler) {
         this.presenceHandlers.push(handler);
+    }
+    ready() {
+        return Promise.resolve(!this.left);
     }
     presence() {
         return this.members;

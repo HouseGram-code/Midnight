@@ -7,7 +7,7 @@
 
 import { requireElement, setHidden, setText } from "./dom.js"
 
-export const GAME_VERSION = "1.1.0-beta"
+export const GAME_VERSION = "1.1.1-beta"
 
 export interface GameSettings {
 	/** Чувствительность мыши, множитель 0.3…2.5. */

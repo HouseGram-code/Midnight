@@ -85,7 +85,7 @@ export class OnlinePanel {
 	}
 
 	get isSearching(): boolean { return this.session?.phase === "searching" }
-	open(): void { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop(); void this.ensureRandomSession() }
+	open(): void { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop() }
 	close(): void { this.stopLoop() }
 	reset(): void { this.leaveSession(); this.pending = null; this.startAt = 0; this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren(); this.showCodeSetup(); this.setStatus("Готовы к следующей игре", "Выберите случайную игру или комнату по коду."); this.refreshButtons() }
 
@@ -99,7 +99,7 @@ export class OnlinePanel {
 		this.codeModeButton.setAttribute("aria-selected", String(mode === "code"))
 		setHidden(this.codeBox, mode !== "code"); setHidden(this.startButton, mode !== "random"); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.soloButton, true); setHidden(this.searchBox, true)
 		this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren()
-		if (mode === "random") { this.setStatus("Подключаемся к серверу…", "Затем можно искать случайных игроков."); void this.ensureRandomSession() }
+		if (mode === "random") { this.setStatus("Случайная игра", "Введите имя и нажмите «Начать игру онлайн».") }
 		else { this.showCodeSetup(); this.setStatus("Комната по коду", "Создайте комнату или введите код друга.") }
 		this.refreshButtons()
 	}
