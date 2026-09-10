@@ -113,10 +113,17 @@ export class AudioManager {
 	private context: AudioContext | null = null
 	private master: GainNode | null = null
 	private readonly buffers = new Map<SoundName, AudioBuffer>()
+	private readonly encoded = new Map<SoundName, ArrayBuffer>()
 	private readonly loops = new Map<SoundName, ActiveLoop>()
+	private readonly pendingLoops = new Map<
+		SoundName,
+		{ volume?: number; rate?: number; fade?: number }
+	>()
 	private readonly missing = new Set<SoundName>()
 	private volume = 0.85
 	private loaded = false
+	private decoding: Promise<void> | null = null
+	private unlockArmed = false
 
 	constructor(private readonly basePath = "./assets/audio/") {}
 
@@ -128,23 +135,9 @@ export class AudioManager {
 		return this.volume
 	}
 
-	/** Создаёт контекст и грузит все файлы. Безопасно вызывать повторно. */
+	/** Загружает файлы, но не создаёт AudioContext до жеста пользователя. */
 	async load(onProgress?: (loaded: number, total: number) => void): Promise<void> {
 		if (this.loaded) return
-		const Ctor: typeof AudioContext | undefined =
-			window.AudioContext ??
-			(window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-		if (!Ctor) {
-			this.loaded = true
-			return
-		}
-		const context = new Ctor()
-		const master = context.createGain()
-		master.gain.value = this.volume
-		master.connect(context.destination)
-		this.context = context
-		this.master = master
-
 		const names = Object.keys(SOUND_FILES) as SoundName[]
 		let done = 0
 		await Promise.all(
@@ -152,8 +145,7 @@ export class AudioManager {
 				try {
 					const response = await fetch(this.basePath + SOUND_FILES[name])
 					if (!response.ok) throw new Error(`HTTP ${response.status}`)
-					const bytes = await response.arrayBuffer()
-					this.buffers.set(name, await context.decodeAudioData(bytes))
+					this.encoded.set(name, await response.arrayBuffer())
 				} catch {
 					// Звук — не критичный ресурс: игра должна работать и без него.
 					this.missing.add(name)
@@ -163,11 +155,25 @@ export class AudioManager {
 			}),
 		)
 		this.loaded = true
+		this.armUnlock()
 	}
 
 	/** Вызывать из обработчика клика/клавиши. */
 	resume(): void {
-		if (this.context && this.context.state === "suspended") void this.context.resume()
+		if (!this.userGestureActive()) {
+			this.armUnlock()
+			return
+		}
+		const context = this.ensureContext()
+		if (!context) return
+		if (context.state === "suspended") {
+			void context
+				.resume()
+				.then(() => this.flushPendingLoops())
+				.catch(() => this.armUnlock())
+		} else {
+			this.flushPendingLoops()
+		}
 	}
 
 	suspend(): void {
@@ -190,7 +196,7 @@ export class AudioManager {
 		const master = this.master
 		const buffer = this.buffers.get(name)
 		if (!context || !master || !buffer) return
-		if (context.state === "suspended") void context.resume()
+		if (context.state !== "running") return
 
 		const source = context.createBufferSource()
 		source.buffer = buffer
@@ -243,7 +249,11 @@ export class AudioManager {
 		const context = this.context
 		const master = this.master
 		const buffer = this.buffers.get(name)
-		if (!context || !master || !buffer) return
+		if (!context || !master || !buffer || context.state !== "running") {
+			this.pendingLoops.set(name, options)
+			return
+		}
+		this.pendingLoops.delete(name)
 		const target = options.volume ?? 1
 		const existing = this.loops.get(name)
 		if (existing) {
@@ -254,7 +264,6 @@ export class AudioManager {
 			}
 			return
 		}
-		if (context.state === "suspended") void context.resume()
 		const source = context.createBufferSource()
 		source.buffer = buffer
 		source.loop = true
@@ -288,6 +297,7 @@ export class AudioManager {
 	}
 
 	stopLoop(name: SoundName, fadeSeconds = 0.2): void {
+		this.pendingLoops.delete(name)
 		const loop = this.loops.get(name)
 		const context = this.context
 		if (!loop || !context) return
@@ -312,6 +322,61 @@ export class AudioManager {
 	}
 
 	stopAllLoops(fadeSeconds = 0.2): void {
+		this.pendingLoops.clear()
 		for (const name of [...this.loops.keys()]) this.stopLoop(name, fadeSeconds)
+	}
+
+	private userGestureActive(): boolean {
+		const activation = navigator.userActivation
+		return activation ? activation.isActive : true
+	}
+
+	private armUnlock(): void {
+		if (this.unlockArmed || this.context?.state === "running") return
+		this.unlockArmed = true
+		const unlock = (): void => {
+			window.removeEventListener("pointerdown", unlock)
+			window.removeEventListener("keydown", unlock)
+			this.unlockArmed = false
+			this.resume()
+		}
+		window.addEventListener("pointerdown", unlock, { once: true })
+		window.addEventListener("keydown", unlock, { once: true })
+	}
+
+	private ensureContext(): AudioContext | null {
+		if (this.context) return this.context
+		const Ctor: typeof AudioContext | undefined =
+			window.AudioContext ??
+			(window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+		if (!Ctor) return null
+		const context = new Ctor()
+		const master = context.createGain()
+		master.gain.value = this.volume
+		master.connect(context.destination)
+		this.context = context
+		this.master = master
+		this.decoding = this.decodeAll(context)
+		return context
+	}
+
+	private async decodeAll(context: AudioContext): Promise<void> {
+		await Promise.all(
+			[...this.encoded.entries()].map(async ([name, bytes]) => {
+				try {
+					this.buffers.set(name, await context.decodeAudioData(bytes.slice(0)))
+				} catch {
+					this.missing.add(name)
+				}
+			}),
+		)
+		this.encoded.clear()
+		this.decoding = null
+		this.flushPendingLoops()
+	}
+
+	private flushPendingLoops(): void {
+		if (this.context?.state !== "running") return
+		for (const [name, options] of [...this.pendingLoops]) this.startLoop(name, options)
 	}
 }

@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const out = join(root, "public")
-const parts = ["index.html", "dist", "styles", "assets"]
+const parts = ["index.html", "favicon.ico", "icon.svg", "apple-touch-icon.png", "dist", "styles", "assets"]
 
 rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })

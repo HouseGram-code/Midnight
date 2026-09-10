@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Полночь в 8-Б">
+  <rect width="64" height="64" rx="14" fill="#080b10"/>
+  <circle cx="46" cy="17" r="8" fill="#d9e5df"/>
+  <circle cx="50" cy="14" r="8" fill="#080b10"/>
+  <path d="M10 29 32 14l22 15v25H10z" fill="#171d25" stroke="#aeb8ba" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M16 31h32v23H16z" fill="#10151c"/>
+  <rect x="21" y="34" width="9" height="9" rx="1" fill="#d7a646"/>
+  <rect x="34" y="34" width="9" height="9" rx="1" fill="#823a36"/>
+  <path d="M27 34v9M21 38.5h9M38.5 34v9M34 38.5h9" stroke="#312a24" stroke-width="1"/>
+  <rect x="28" y="45" width="8" height="9" rx="1" fill="#07090d" stroke="#78828a"/>
+  <path d="M8 55h48" stroke="#9b3836" stroke-width="3" stroke-linecap="round"/>
+</svg>

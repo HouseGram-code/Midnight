@@ -144,6 +144,21 @@ export class OnlinePanel {
 
 	private async ensureSession(): Promise<void> {
 		if (this.session) {
+			if (this.session.phase === "idle") {
+				this.loader.dataset.mode = "connect"
+				this.setStatus("Подключаемся к серверу…", "Повторяем попытку соединения.")
+				const ok = await this.session.enter()
+				if (!ok) {
+					this.loader.dataset.mode = "error"
+					this.setStatus(
+						"Сервер не отвечает",
+						`${this.client?.lastError || "Не вышло подключиться"}. Можно попробовать ещё раз.`,
+					)
+				} else {
+					this.loader.dataset.mode = "idle"
+					this.setStatus("Сеть на связи", "Придумайте имя и жмите «Начать игру онлайн».")
+				}
+			}
 			this.refreshButtons()
 			return
 		}
@@ -201,7 +216,7 @@ export class OnlinePanel {
 			return
 		}
 		rememberName(name)
-		if (!this.session) {
+		if (!this.session || this.session.phase === "idle") {
 			void this.ensureSession().then(() => {
 				if (this.session?.phase === "lobby") this.startSearch()
 			})

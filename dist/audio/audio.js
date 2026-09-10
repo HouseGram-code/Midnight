@@ -56,10 +56,14 @@ export class AudioManager {
     context = null;
     master = null;
     buffers = new Map();
+    encoded = new Map();
     loops = new Map();
+    pendingLoops = new Map();
     missing = new Set();
     volume = 0.85;
     loaded = false;
+    decoding = null;
+    unlockArmed = false;
     constructor(basePath = "./assets/audio/") {
         this.basePath = basePath;
     }
@@ -69,22 +73,10 @@ export class AudioManager {
     get masterVolume() {
         return this.volume;
     }
-    /** Создаёт контекст и грузит все файлы. Безопасно вызывать повторно. */
+    /** Загружает файлы, но не создаёт AudioContext до жеста пользователя. */
     async load(onProgress) {
         if (this.loaded)
             return;
-        const Ctor = window.AudioContext ??
-            window.webkitAudioContext;
-        if (!Ctor) {
-            this.loaded = true;
-            return;
-        }
-        const context = new Ctor();
-        const master = context.createGain();
-        master.gain.value = this.volume;
-        master.connect(context.destination);
-        this.context = context;
-        this.master = master;
         const names = Object.keys(SOUND_FILES);
         let done = 0;
         await Promise.all(names.map(async (name) => {
@@ -92,8 +84,7 @@ export class AudioManager {
                 const response = await fetch(this.basePath + SOUND_FILES[name]);
                 if (!response.ok)
                     throw new Error(`HTTP ${response.status}`);
-                const bytes = await response.arrayBuffer();
-                this.buffers.set(name, await context.decodeAudioData(bytes));
+                this.encoded.set(name, await response.arrayBuffer());
             }
             catch {
                 // Звук — не критичный ресурс: игра должна работать и без него.
@@ -103,11 +94,26 @@ export class AudioManager {
             onProgress?.(done, names.length);
         }));
         this.loaded = true;
+        this.armUnlock();
     }
     /** Вызывать из обработчика клика/клавиши. */
     resume() {
-        if (this.context && this.context.state === "suspended")
-            void this.context.resume();
+        if (!this.userGestureActive()) {
+            this.armUnlock();
+            return;
+        }
+        const context = this.ensureContext();
+        if (!context)
+            return;
+        if (context.state === "suspended") {
+            void context
+                .resume()
+                .then(() => this.flushPendingLoops())
+                .catch(() => this.armUnlock());
+        }
+        else {
+            this.flushPendingLoops();
+        }
     }
     suspend() {
         if (this.context && this.context.state === "running")
@@ -128,8 +134,8 @@ export class AudioManager {
         const buffer = this.buffers.get(name);
         if (!context || !master || !buffer)
             return;
-        if (context.state === "suspended")
-            void context.resume();
+        if (context.state !== "running")
+            return;
         const source = context.createBufferSource();
         source.buffer = buffer;
         source.playbackRate.value = options.rate ?? 1;
@@ -176,8 +182,11 @@ export class AudioManager {
         const context = this.context;
         const master = this.master;
         const buffer = this.buffers.get(name);
-        if (!context || !master || !buffer)
+        if (!context || !master || !buffer || context.state !== "running") {
+            this.pendingLoops.set(name, options);
             return;
+        }
+        this.pendingLoops.delete(name);
         const target = options.volume ?? 1;
         const existing = this.loops.get(name);
         if (existing) {
@@ -188,8 +197,6 @@ export class AudioManager {
             }
             return;
         }
-        if (context.state === "suspended")
-            void context.resume();
         const source = context.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
@@ -222,6 +229,7 @@ export class AudioManager {
         return this.loops.has(name);
     }
     stopLoop(name, fadeSeconds = 0.2) {
+        this.pendingLoops.delete(name);
         const loop = this.loops.get(name);
         const context = this.context;
         if (!loop || !context)
@@ -248,8 +256,61 @@ export class AudioManager {
         }, fadeSeconds * 1000 + 60);
     }
     stopAllLoops(fadeSeconds = 0.2) {
+        this.pendingLoops.clear();
         for (const name of [...this.loops.keys()])
             this.stopLoop(name, fadeSeconds);
+    }
+    userGestureActive() {
+        const activation = navigator.userActivation;
+        return activation ? activation.isActive : true;
+    }
+    armUnlock() {
+        if (this.unlockArmed || this.context?.state === "running")
+            return;
+        this.unlockArmed = true;
+        const unlock = () => {
+            window.removeEventListener("pointerdown", unlock);
+            window.removeEventListener("keydown", unlock);
+            this.unlockArmed = false;
+            this.resume();
+        };
+        window.addEventListener("pointerdown", unlock, { once: true });
+        window.addEventListener("keydown", unlock, { once: true });
+    }
+    ensureContext() {
+        if (this.context)
+            return this.context;
+        const Ctor = window.AudioContext ??
+            window.webkitAudioContext;
+        if (!Ctor)
+            return null;
+        const context = new Ctor();
+        const master = context.createGain();
+        master.gain.value = this.volume;
+        master.connect(context.destination);
+        this.context = context;
+        this.master = master;
+        this.decoding = this.decodeAll(context);
+        return context;
+    }
+    async decodeAll(context) {
+        await Promise.all([...this.encoded.entries()].map(async ([name, bytes]) => {
+            try {
+                this.buffers.set(name, await context.decodeAudioData(bytes.slice(0)));
+            }
+            catch {
+                this.missing.add(name);
+            }
+        }));
+        this.encoded.clear();
+        this.decoding = null;
+        this.flushPendingLoops();
+    }
+    flushPendingLoops() {
+        if (this.context?.state !== "running")
+            return;
+        for (const [name, options] of [...this.pendingLoops])
+            this.startLoop(name, options);
     }
 }
 //# sourceMappingURL=audio.js.map
