@@ -16,7 +16,7 @@ export function createContext(canvas: HTMLCanvasElement, antialias: boolean): We
 	})
 	if (!gl) {
 		throw new GlError(
-			"WebGL2 не поддерживается этим браузером. Нужен Chrome, Edge, Firefox или Safari свежей версии.",
+			"Браузер не поддерживает графику игры. Нужен Chrome, Edge, Firefox или Safari свежей версии.",
 		)
 	}
 	return gl

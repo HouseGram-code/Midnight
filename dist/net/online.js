@@ -8,6 +8,29 @@
  */
 import { buildRemotePlayer, skinFor } from "./remote.js";
 import { STATE_HZ, TEACHER_HZ } from "./session.js";
+/**
+ * Предмет в руке ездит одним числом: 0 — пусто, дальше по списку.
+ * Список менять только в конец, иначе старые клиенты увидят чужой предмет.
+ */
+const HELD_CODES = [
+    "flashlight",
+    "key",
+    "crowbar",
+    "cutters",
+    "handle",
+    "fuse",
+];
+function heldCode(kind) {
+    if (!kind)
+        return 0;
+    const index = HELD_CODES.indexOf(kind);
+    return index < 0 ? 0 : index + 1;
+}
+function heldFromCode(code) {
+    if (!Number.isFinite(code) || code <= 0)
+        return null;
+    return HELD_CODES[Math.round(code) - 1] ?? null;
+}
 const STATE_INTERVAL = 1 / STATE_HZ;
 const TEACHER_INTERVAL = 1 / TEACHER_HZ;
 function shortestAngle(from, to) {
@@ -72,6 +95,7 @@ export class OnlineGame {
                 hidden: false,
                 sitting: true,
                 flashlight: false,
+                held: null,
                 lives: 5,
                 items: 0,
                 escaped: false,
@@ -212,6 +236,7 @@ export class OnlineGame {
                 hidden: false,
                 sitting: false,
                 flashlight: false,
+                held: null,
                 lives: 5,
                 items: 0,
                 escaped: false,
@@ -232,6 +257,7 @@ export class OnlineGame {
         player.hidden = (flags & 2) !== 0;
         player.sitting = (flags & 4) !== 0;
         player.flashlight = (flags & 8) !== 0;
+        player.held = heldFromCode(Number(payload.w ?? 0));
         player.escaped = (flags & 16) !== 0;
         player.down = (flags & 32) !== 0;
         player.active = (flags & 64) !== 0;
@@ -281,6 +307,7 @@ export class OnlineGame {
                 f: flags,
                 l: local.lives,
                 k: local.items,
+                w: heldCode(local.held),
             };
             const packetJson = JSON.stringify(packet);
             const now = performance.now();
@@ -392,6 +419,7 @@ export class OnlineGame {
                 crouching: player.crouching,
                 sitting: player.sitting,
                 flashlight: player.flashlight,
+                held: player.held,
                 skin: player.skin,
             });
         }

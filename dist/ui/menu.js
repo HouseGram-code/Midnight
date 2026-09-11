@@ -5,13 +5,16 @@
  * Всё на обычных DOM-событиях — никаких фреймворков.
  */
 import { requireElement, setHidden, setText } from "./dom.js";
-export const GAME_VERSION = "1.0.0-beta";
+export const GAME_VERSION = "1.0.1-beta";
+const QUALITY_LEVELS = ["auto", "low", "medium", "high"];
 const STORAGE_KEY = "school3d.settings.v1";
 const DEFAULT_SETTINGS = {
     sensitivity: 1,
     volume: 0.8,
     brightness: 1,
     invertY: false,
+    showFps: false,
+    quality: "auto",
 };
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -27,6 +30,10 @@ export function loadSettings() {
             volume: clamp(Number(parsed.volume ?? 0.8), 0, 1),
             brightness: clamp(Number(parsed.brightness ?? 1) || 1, 0.6, 1.6),
             invertY: Boolean(parsed.invertY),
+            showFps: Boolean(parsed.showFps),
+            quality: QUALITY_LEVELS.includes(parsed.quality)
+                ? parsed.quality
+                : "auto",
         };
     }
     catch {
@@ -77,6 +84,8 @@ export class Menu {
     volumeInput = requireElement("set-volume");
     brightnessInput = requireElement("set-brightness");
     invertInput = requireElement("set-invert");
+    fpsInput = requireElement("set-fps");
+    qualityInput = requireElement("set-quality");
     sensitivityValue = requireElement("set-sensitivity-value");
     volumeValue = requireElement("set-volume-value");
     brightnessValue = requireElement("set-brightness-value");
@@ -103,6 +112,8 @@ export class Menu {
         this.volumeInput.value = String(Math.round(this.settings.volume * 100));
         this.brightnessInput.value = String(Math.round(this.settings.brightness * 100));
         this.invertInput.checked = this.settings.invertY;
+        this.fpsInput.checked = this.settings.showFps;
+        this.qualityInput.value = this.settings.quality;
         this.refreshLabels();
         const onInput = () => {
             this.settings = {
@@ -110,12 +121,23 @@ export class Menu {
                 volume: clamp(Number(this.volumeInput.value) / 100, 0, 1),
                 brightness: clamp(Number(this.brightnessInput.value) / 100, 0.6, 1.6),
                 invertY: this.invertInput.checked,
+                showFps: this.fpsInput.checked,
+                quality: QUALITY_LEVELS.includes(this.qualityInput.value)
+                    ? this.qualityInput.value
+                    : "auto",
             };
             this.refreshLabels();
             saveSettings(this.settings);
             this.callbacks.onSettingsChange(this.settings);
         };
-        for (const input of [this.sensitivityInput, this.volumeInput, this.brightnessInput, this.invertInput]) {
+        for (const input of [
+            this.sensitivityInput,
+            this.volumeInput,
+            this.brightnessInput,
+            this.invertInput,
+            this.fpsInput,
+            this.qualityInput,
+        ]) {
             input.addEventListener("input", onInput);
             input.addEventListener("change", onInput);
         }
@@ -125,6 +147,8 @@ export class Menu {
             this.volumeInput.value = "80";
             this.brightnessInput.value = "100";
             this.invertInput.checked = false;
+            this.fpsInput.checked = false;
+            this.qualityInput.value = "auto";
             this.refreshLabels();
             saveSettings(this.settings);
             this.callbacks.onSettingsChange(this.settings);

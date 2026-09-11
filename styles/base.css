@@ -1093,3 +1093,20 @@ kbd {
 	.online__code-label { grid-column: 1 / -1; }
 	.online__code-value { text-align: left; }
 }
+
+/* Выпадающий список в настройках (качество картинки). */
+.setting__select {
+	width: 100%;
+	padding: 8px 10px;
+	border-radius: 8px;
+	color: inherit;
+	font: inherit;
+	background: rgba(16, 19, 28, 0.9);
+	border: 1px solid rgba(200, 210, 235, 0.22);
+	cursor: pointer;
+}
+
+.setting__select:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}

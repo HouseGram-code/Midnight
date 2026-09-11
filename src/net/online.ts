@@ -9,6 +9,7 @@
 
 import type { MeshBuilder } from "../core/mesh.js"
 import { buildRemotePlayer, skinFor } from "./remote.js"
+import type { ItemKind } from "../game/items.js"
 import type { PlayerSkin } from "./remote.js"
 import { STATE_HZ, TEACHER_HZ } from "./session.js"
 import type { MatchInfo, OnlineSession } from "./session.js"
@@ -24,6 +25,8 @@ export interface LocalSnapshot {
 	hidden: boolean
 	sitting: boolean
 	flashlight: boolean
+	/** Какой предмет у нас в руке — его увидят остальные. */
+	held: ItemKind | null
 	lives: number
 	items: number
 	escaped: boolean
@@ -60,6 +63,8 @@ export interface NetPlayer {
 	hidden: boolean
 	sitting: boolean
 	flashlight: boolean
+	/** Предмет в руке чужого игрока. */
+	held: ItemKind | null
 	lives: number
 	items: number
 	escaped: boolean
@@ -81,6 +86,30 @@ export interface OnlineHooks {
 	onLightsOut: () => void
 	onChat: (name: string, text: string, color: string, system: boolean) => void
 	onToast: (text: string) => void
+}
+
+/**
+ * Предмет в руке ездит одним числом: 0 — пусто, дальше по списку.
+ * Список менять только в конец, иначе старые клиенты увидят чужой предмет.
+ */
+const HELD_CODES: readonly ItemKind[] = [
+	"flashlight",
+	"key",
+	"crowbar",
+	"cutters",
+	"handle",
+	"fuse",
+]
+
+function heldCode(kind: ItemKind | null): number {
+	if (!kind) return 0
+	const index = HELD_CODES.indexOf(kind)
+	return index < 0 ? 0 : index + 1
+}
+
+function heldFromCode(code: number): ItemKind | null {
+	if (!Number.isFinite(code) || code <= 0) return null
+	return HELD_CODES[Math.round(code) - 1] ?? null
 }
 
 const STATE_INTERVAL = 1 / STATE_HZ
@@ -146,6 +175,7 @@ export class OnlineGame {
 				hidden: false,
 				sitting: true,
 				flashlight: false,
+				held: null,
 				lives: 5,
 				items: 0,
 				escaped: false,
@@ -276,6 +306,7 @@ export class OnlineGame {
 				hidden: false,
 				sitting: false,
 				flashlight: false,
+				held: null,
 				lives: 5,
 				items: 0,
 				escaped: false,
@@ -296,6 +327,7 @@ export class OnlineGame {
 		player.hidden = (flags & 2) !== 0
 		player.sitting = (flags & 4) !== 0
 		player.flashlight = (flags & 8) !== 0
+		player.held = heldFromCode(Number(payload.w ?? 0))
 		player.escaped = (flags & 16) !== 0
 		player.down = (flags & 32) !== 0
 		player.active = (flags & 64) !== 0
@@ -346,6 +378,7 @@ export class OnlineGame {
 				f: flags,
 				l: local.lives,
 				k: local.items,
+				w: heldCode(local.held),
 			}
 			const packetJson = JSON.stringify(packet)
 			const now = performance.now()
@@ -462,6 +495,7 @@ export class OnlineGame {
 				crouching: player.crouching,
 				sitting: player.sitting,
 				flashlight: player.flashlight,
+				held: player.held,
 				skin: player.skin,
 			})
 		}

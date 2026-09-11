@@ -5,6 +5,7 @@
  * поэтому свет и туман работают на ней без единой строчки в шейдере.
  */
 import { shade } from "../core/mesh.js";
+import { buildItemModel } from "../game/items.js";
 /** Пять разных школьников — чтобы в темноте было понятно, кто есть кто. */
 export const PLAYER_SKINS = [
     {
@@ -109,13 +110,23 @@ export function buildRemotePlayer(mesh, pose) {
     const armSwing = swing * 0.3;
     const armTop = chestTop - 0.02;
     const armLow = hipY + 0.06;
-    if (pose.flashlight) {
-        // Рука с фонарём вытянута вперёд.
-        mesh.box(0.2, armLow + 0.24, -0.42, 0.32, armTop - 0.04, 0.06, skin.shirt);
-        mesh.box(0.21, armLow + 0.26, -0.52, 0.31, armTop - 0.08, -0.4, skin.skin);
-        mesh.box(0.23, armLow + 0.28, -0.62, 0.29, armTop - 0.12, -0.5, [0.82, 0.8, 0.3], {
-            emissive: true,
-        });
+    // В руке либо фонарь, либо найденный предмет — и то, и другое рисуем реальной моделью.
+    const held = sit ? null : (pose.held ?? (pose.flashlight ? "flashlight" : null));
+    if (held) {
+        // Рука с предметом: плечо вниз, предплечье вперёд, в кулаке модель предмета.
+        const shoulderY = armTop - 0.02;
+        const elbowY = armLow + 0.14;
+        const handY = elbowY + 0.07;
+        mesh.box(0.2, elbowY, -0.11, 0.31, shoulderY, 0.09, skin.shirt);
+        mesh.box(0.21, elbowY, -0.34, 0.3, elbowY + 0.12, -0.09, skin.shirt);
+        mesh.box(0.215, elbowY, -0.43, 0.295, elbowY + 0.11, -0.32, skin.skin);
+        // Модель строим в локальных координатах — общий rotate() ниже повернёт её вместе с телом.
+        buildItemModel(mesh, held, { x: 0.255, y: handY, z: -0.5, yaw: 0 }, 0.95 * scale, held === "flashlight" && pose.flashlight);
+        if (held === "flashlight" && pose.flashlight) {
+            mesh.box(0.235, handY - 0.03, -0.66, 0.275, handY + 0.03, -0.62, [0.95, 0.9, 0.55], {
+                emissive: true,
+            });
+        }
     }
     else {
         mesh.box(0.2, armLow, -0.1 - armSwing, 0.31, armTop, 0.1 - armSwing, skin.shirt);

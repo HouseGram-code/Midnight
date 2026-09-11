@@ -711,3 +711,40 @@
 		bottom: 96px;
 	}
 }
+
+/* ---------- счётчик FPS ---------- */
+
+.fps-meter {
+	position: absolute;
+	top: 14px;
+	right: 22px;
+	z-index: 24;
+	padding: 3px 8px;
+	border-radius: 8px;
+	font: 600 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	letter-spacing: 0.04em;
+	color: rgba(226, 234, 245, 0.82);
+	background: rgba(8, 10, 16, 0.42);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	pointer-events: none;
+}
+
+.fps-meter b {
+	color: #9fe8a8;
+	font-weight: 700;
+}
+
+.fps-meter[data-low="1"] b {
+	color: #f0c060;
+}
+
+.fps-meter[data-low="2"] b {
+	color: #ef7a6a;
+}
+
+@media (max-width: 900px) and (pointer: coarse) {
+	.fps-meter {
+		top: calc(env(safe-area-inset-top, 0px) + 10px);
+		right: calc(env(safe-area-inset-right, 0px) + 84px);
+	}
+}

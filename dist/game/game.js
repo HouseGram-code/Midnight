@@ -388,6 +388,12 @@ export class Game {
             hidden: this.state === "hiding",
             sitting: intro,
             flashlight: this.flashlightOn && this.flashlightOwned,
+            // Предмет в руке тот же, что мы рисуем себе от первого лица.
+            held: intro
+                ? null
+                : (this.heldItem ??
+                    this.hotbar[this.slot] ??
+                    (this.flashlightOn && this.flashlightOwned ? "flashlight" : null)),
             lives: this.lives,
             items: this.collected.size,
             escaped: this.state === "won" || this.state === "outro",

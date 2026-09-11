@@ -70,7 +70,7 @@ async function boot() {
         renderer = new Renderer(canvas);
     }
     catch (error) {
-        overlay.showError(`Не удалось запустить WebGL2. ${describe(error)}`);
+        overlay.showError(`Не удалось запустить графику игры. ${describe(error)}`);
         return;
     }
     // Даём браузеру отрисовать экран загрузки до тяжёлой сборки геометрии.
@@ -122,12 +122,68 @@ async function boot() {
     };
     let invertY = false;
     let gameRef = null;
+    // Счётчик FPS поверх игры: включается в настройках.
+    const fpsMeter = requireElement("fps");
+    const fpsValue = requireElement("fps-value");
+    let showFps = false;
+    let nextFpsUpdate = 0;
+    // Пресеты качества: меняем только размер буфера рендера, картинка остаётся той же.
+    const touchDevice = isTouchDevice();
+    const qualityPreset = (quality) => {
+        switch (quality) {
+            case "low":
+                return {
+                    maxPixelRatio: 1,
+                    minScale: 0.45,
+                    maxScale: 0.7,
+                    adaptive: false,
+                    targetFrameMs: 16.7,
+                };
+            case "medium":
+                return {
+                    maxPixelRatio: touchDevice ? 1.35 : 1.5,
+                    minScale: 0.6,
+                    maxScale: 0.85,
+                    adaptive: false,
+                    targetFrameMs: 16.7,
+                };
+            case "high":
+                return {
+                    maxPixelRatio: touchDevice ? 1.75 : 2,
+                    minScale: 0.85,
+                    maxScale: 1,
+                    adaptive: false,
+                    targetFrameMs: 16.7,
+                };
+            default:
+                // Авто: на телефоне сразу режем пиксель-ратио, иначе кадры проседают.
+                return touchDevice
+                    ? {
+                        maxPixelRatio: 1.4,
+                        minScale: 0.5,
+                        maxScale: 0.95,
+                        adaptive: true,
+                        targetFrameMs: 17.5,
+                    }
+                    : {
+                        maxPixelRatio: 2,
+                        minScale: 0.62,
+                        maxScale: 1,
+                        adaptive: true,
+                        targetFrameMs: 16.7,
+                    };
+        }
+    };
     const applySettings = (settings) => {
         invertY = settings.invertY;
         input.sensitivity = CONFIG.camera.sensitivity * settings.sensitivity;
         audio.setMasterVolume(settings.volume);
         menuMusic.setVolume(settings.volume * 0.5);
         gameRef?.setBrightness(settings.brightness);
+        renderer.setQuality(qualityPreset(settings.quality));
+        showFps = settings.showFps;
+        setHidden(fpsMeter, !settings.showFps);
+        nextFpsUpdate = 0;
         saveSettings(settings);
     };
     // Сетевой HUD живёт поверх игры и молчит, пока мы не в онлайне.
@@ -204,7 +260,7 @@ async function boot() {
         clock.resume(performance.now());
         touch.setOnline(false);
         touch.setVisible(true);
-        // Мышь просим прямо в жесте «Играть»: тогда захват доживёт до конца заставки.
+        // Мышь просим прямо в жесте «Играть»: тогда з��хват доживёт до конца заставки.
         if (wantsPointerLock)
             void input.requestPointerLock();
     };
@@ -380,6 +436,8 @@ async function boot() {
     const loop = (now) => {
         requestAnimationFrame(loop);
         const steps = clock.tick(now);
+        // Обзор с телефона копится между кадрами — отдаём его сглаженной порцией.
+        touch.frame();
         const mouse = input.consumeMouseDelta();
         // Шагать можно всегда, пока игра идёт: клавиатуре захват курсора не нужен.
         // Обзор мышью — только когда курсор действительно захвачен.
@@ -403,6 +461,12 @@ async function boot() {
                 crouching: player.crouching,
                 sprinting: player.sprinting,
             }, now);
+        }
+        if (showFps && now >= nextFpsUpdate) {
+            nextFpsUpdate = now + 250;
+            const fps = Math.round(clock.fps);
+            fpsValue.textContent = String(fps);
+            fpsMeter.dataset.low = fps < 30 ? "2" : fps < 50 ? "1" : "";
         }
         if (minimap.visible)
             minimap.render(player.x, player.z, player.yaw, now);

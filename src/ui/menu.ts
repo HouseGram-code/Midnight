@@ -7,7 +7,12 @@
 
 import { requireElement, setHidden, setText } from "./dom.js"
 
-export const GAME_VERSION = "1.0.0-beta"
+export const GAME_VERSION = "1.0.1-beta"
+
+/** Качество картинки: auto сам подбирает разрешение по времени кадра. */
+export type QualityLevel = "auto" | "low" | "medium" | "high"
+
+const QUALITY_LEVELS: readonly QualityLevel[] = ["auto", "low", "medium", "high"]
 
 export interface GameSettings {
 	/** Чувствительность мыши, множитель 0.3…2.5. */
@@ -18,6 +23,10 @@ export interface GameSettings {
 	brightness: number
 	/** Инвертировать вертикальную ось. */
 	invertY: boolean
+	/** Показывать счётчик FPS поверх игры. */
+	showFps: boolean
+	/** Качество картинки (влияет только на разрешение рендера). */
+	quality: QualityLevel
 }
 
 const STORAGE_KEY = "school3d.settings.v1"
@@ -27,6 +36,8 @@ const DEFAULT_SETTINGS: GameSettings = {
 	volume: 0.8,
 	brightness: 1,
 	invertY: false,
+	showFps: false,
+	quality: "auto",
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -43,6 +54,10 @@ export function loadSettings(): GameSettings {
 			volume: clamp(Number(parsed.volume ?? 0.8), 0, 1),
 			brightness: clamp(Number(parsed.brightness ?? 1) || 1, 0.6, 1.6),
 			invertY: Boolean(parsed.invertY),
+			showFps: Boolean(parsed.showFps),
+			quality: QUALITY_LEVELS.includes(parsed.quality as QualityLevel)
+				? (parsed.quality as QualityLevel)
+				: "auto",
 		}
 	} catch {
 		return { ...DEFAULT_SETTINGS }
@@ -100,6 +115,8 @@ export class Menu {
 	private readonly volumeInput = requireElement("set-volume") as HTMLInputElement
 	private readonly brightnessInput = requireElement("set-brightness") as HTMLInputElement
 	private readonly invertInput = requireElement("set-invert") as HTMLInputElement
+	private readonly fpsInput = requireElement("set-fps") as HTMLInputElement
+	private readonly qualityInput = requireElement("set-quality") as HTMLSelectElement
 	private readonly sensitivityValue = requireElement("set-sensitivity-value")
 	private readonly volumeValue = requireElement("set-volume-value")
 	private readonly brightnessValue = requireElement("set-brightness-value")
@@ -129,6 +146,8 @@ export class Menu {
 		this.volumeInput.value = String(Math.round(this.settings.volume * 100))
 		this.brightnessInput.value = String(Math.round(this.settings.brightness * 100))
 		this.invertInput.checked = this.settings.invertY
+		this.fpsInput.checked = this.settings.showFps
+		this.qualityInput.value = this.settings.quality
 		this.refreshLabels()
 
 		const onInput = (): void => {
@@ -137,12 +156,23 @@ export class Menu {
 				volume: clamp(Number(this.volumeInput.value) / 100, 0, 1),
 				brightness: clamp(Number(this.brightnessInput.value) / 100, 0.6, 1.6),
 				invertY: this.invertInput.checked,
+				showFps: this.fpsInput.checked,
+				quality: QUALITY_LEVELS.includes(this.qualityInput.value as QualityLevel)
+					? (this.qualityInput.value as QualityLevel)
+					: "auto",
 			}
 			this.refreshLabels()
 			saveSettings(this.settings)
 			this.callbacks.onSettingsChange(this.settings)
 		}
-		for (const input of [this.sensitivityInput, this.volumeInput, this.brightnessInput, this.invertInput]) {
+		for (const input of [
+			this.sensitivityInput,
+			this.volumeInput,
+			this.brightnessInput,
+			this.invertInput,
+			this.fpsInput,
+			this.qualityInput,
+		]) {
 			input.addEventListener("input", onInput)
 			input.addEventListener("change", onInput)
 		}
@@ -152,6 +182,8 @@ export class Menu {
 			this.volumeInput.value = "80"
 			this.brightnessInput.value = "100"
 			this.invertInput.checked = false
+			this.fpsInput.checked = false
+			this.qualityInput.value = "auto"
 			this.refreshLabels()
 			saveSettings(this.settings)
 			this.callbacks.onSettingsChange(this.settings)

@@ -43,6 +43,13 @@ export class Renderer {
     scale = CONFIG.render.maxScale;
     frameTimeAverage = 16;
     sinceScaleCheck = 0;
+    /** Потолок devicePixelRatio — главный рычаг производительности на телефонах. */
+    pixelRatioCap = CONFIG.render.maxPixelRatio;
+    minScale = CONFIG.render.minScale;
+    maxScale = CONFIG.render.maxScale;
+    adaptive = CONFIG.render.adaptiveResolution;
+    /** Целевое время кадра в мс: выше — снижаем разрешение, ниже — возвращаем. */
+    targetFrameMs = 17.5;
     clearR = CONFIG.render.clearColor[0];
     clearG = CONFIG.render.clearColor[1];
     clearB = CONFIG.render.clearColor[2];
@@ -198,8 +205,23 @@ export class Renderer {
     get chunkCount() {
         return this.chunks.length;
     }
+    /**
+     * Настройка качества из меню. Шейдеры и геометрия не меняются — меняется
+     * только размер буфера, а это самый большой выигрыш FPS на телефоне.
+     */
+    setQuality(options) {
+        this.pixelRatioCap = Math.max(0.5, options.maxPixelRatio);
+        this.minScale = Math.max(0.35, Math.min(options.minScale, options.maxScale));
+        this.maxScale = Math.max(this.minScale, options.maxScale);
+        this.adaptive = options.adaptive;
+        this.targetFrameMs = options.targetFrameMs ?? this.targetFrameMs;
+        this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale));
+        this.frameTimeAverage = this.targetFrameMs;
+        this.sinceScaleCheck = 0;
+        this.resize();
+    }
     resize() {
-        const ratio = Math.min(window.devicePixelRatio || 1, CONFIG.render.maxPixelRatio);
+        const ratio = Math.min(window.devicePixelRatio || 1, this.pixelRatioCap);
         const cssWidth = this.canvas.clientWidth || window.innerWidth;
         const cssHeight = this.canvas.clientHeight || window.innerHeight;
         this.width = Math.max(1, Math.round(cssWidth * ratio * this.scale));
@@ -211,19 +233,23 @@ export class Renderer {
     }
     /** Следит за временем кадра и плавно подбирает внутреннее разрешение. */
     updateAdaptiveResolution(frameMs) {
-        if (!CONFIG.render.adaptiveResolution)
+        if (!this.adaptive)
             return;
-        this.frameTimeAverage += (frameMs - this.frameTimeAverage) * 0.1;
+        // Одиночные всплески (сборка мусора, догрузка) не должны ронять разрешение насовсем.
+        const sample = Math.min(frameMs, 80);
+        this.frameTimeAverage += (sample - this.frameTimeAverage) * 0.12;
         this.sinceScaleCheck++;
-        if (this.sinceScaleCheck < 45)
+        if (this.sinceScaleCheck < 20)
             return;
         this.sinceScaleCheck = 0;
         const previous = this.scale;
-        if (this.frameTimeAverage > 20.5 && this.scale > CONFIG.render.minScale) {
-            this.scale = Math.max(CONFIG.render.minScale, this.scale - 0.1);
+        if (this.frameTimeAverage > this.targetFrameMs + 3 && this.scale > this.minScale) {
+            // Просели сильно — сбрасываем разрешение крупным шагом, чтобы лаг не тянулся.
+            const step = this.frameTimeAverage > this.targetFrameMs * 1.8 ? 0.14 : 0.07;
+            this.scale = Math.max(this.minScale, this.scale - step);
         }
-        else if (this.frameTimeAverage < 12.5 && this.scale < CONFIG.render.maxScale) {
-            this.scale = Math.min(CONFIG.render.maxScale, this.scale + 0.05);
+        else if (this.frameTimeAverage < this.targetFrameMs - 4 && this.scale < this.maxScale) {
+            this.scale = Math.min(this.maxScale, this.scale + 0.04);
         }
         if (previous !== this.scale)
             this.resize();

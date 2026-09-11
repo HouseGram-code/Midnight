@@ -12,7 +12,20 @@
 		<title>Полночь в 8-Б — школьный хоррор</title>
 		<meta
 			name="description"
-			content="Полночь в 8-Б — атмосферный хоррор о ночной школе, из которой не так просто выбраться."
+			content="Полночь в 8-Б — атмосферный хоррор о ночной школе: найдите пять предметов и выберитесь наружу."
+		/>
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Полночь в 8-Б" />
+		<meta property="og:title" content="Полночь в 8-Б — школьный хоррор" />
+		<meta
+			property="og:description"
+			content="Полночь в 8-Б — атмосферный хоррор о ночной школе: найдите пять предметов и выберитесь наружу."
+		/>
+		<meta name="twitter:card" content="summary" />
+		<meta name="twitter:title" content="Полночь в 8-Б — школьный хоррор" />
+		<meta
+			name="twitter:description"
+			content="Полночь в 8-Б — атмосферный хоррор о ночной школе: найдите пять предметов и выберитесь наружу."
 		/>
 		<meta name="color-scheme" content="dark" />
 		<meta name="theme-color" content="#080b10" />
@@ -50,6 +63,8 @@
 					<span id="hold-label" class="hold__label"></span>
 				</div>
 			</div>
+
+			<div id="fps" class="fps-meter" hidden><b id="fps-value">60</b> FPS</div>
 
 			<div id="toast" class="toast" hidden></div>
 			<div id="letterbox" class="letterbox"><i></i><i></i></div>
@@ -163,6 +178,19 @@
 						<label class="setting__label" for="set-invert">Инвертировать вертикаль</label>
 						<input class="setting__check" id="set-invert" type="checkbox" />
 					</div>
+					<div class="setting setting--switch">
+						<label class="setting__label" for="set-fps">Показывать FPS</label>
+						<input class="setting__check" id="set-fps" type="checkbox" />
+					</div>
+					<div class="setting">
+						<label class="setting__label" for="set-quality">Качество картинки</label>
+						<select class="setting__select" id="set-quality">
+							<option value="auto">Авто (подстраивается)</option>
+							<option value="low">Низкое — максимум FPS</option>
+							<option value="medium">Среднее</option>
+							<option value="high">Высокое</option>
+						</select>
+					</div>
 					<div class="menu__row">
 						<button class="button button--primary" id="settings-back" type="button">Назад</button>
 						<button class="button button--ghost" id="settings-reset" type="button">Сбросить</button>
@@ -254,7 +282,7 @@
 
 					<div class="menu__row online__actions">
 						<button class="button button--primary" id="online-start" type="button">Начать игру онлайн</button>
-						<button class="button button--primary" id="online-room-start" type="button" hidden>Запустить комнату</button>
+						<button class="button button--primary" id="online-room-start" type="button" hidden>Запустить комна��у</button>
 						<button class="button button--ghost" id="online-cancel" type="button" hidden>Отмена</button>
 						<button class="button button--ghost" id="online-solo" type="button" hidden>Играть одному</button>
 						<button class="button" id="online-back" type="button">Назад</button>
@@ -341,7 +369,7 @@
 				<p class="lead">Игра не смогла запуститься. Текст ошибки:</p>
 				<pre class="error-text" id="error-text"></pre>
 				<p class="meta">
-					Нужен браузер с WebGL2 (Chrome, Edge, Firefox, Safari 15+) и запуск через
+					Нужен современный браузер (Chrome, Edge, Firefox, Safari 15+) и запуск через
 					локальный сервер, а не открытие файла напрямую.
 				</p>
 			</div>
