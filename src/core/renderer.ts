@@ -71,7 +71,14 @@ const UNIFORM_NAMES = [
 	"uFlashOrigin",
 	"uFlashDirection",
 	"uFlashCone",
+	"uExtraCount",
+	"uExtraOrigin[0]",
+	"uExtraDirection[0]",
+	"uExtraCone[0]",
 ] as const
+
+/** Сколько чужих фонарей умеет шейдер. */
+export const MAX_EXTRA_FLASHES = 3
 
 export interface RenderStats {
 	drawCalls: number
@@ -101,6 +108,19 @@ export interface RenderEnvironment {
 	fogDensity?: number
 	clearColor?: readonly number[]
 	flash?: FlashlightState | null
+	/** Фонари других игроков — берём не больше MAX_EXTRA_FLASHES ближайших. */
+	extraFlashes?: ReadonlyArray<FlashlightState>
+}
+
+/** Настройки качества: их меняет меню или автоподбор под устройство. */
+export interface QualityOptions {
+	maxPixelRatio?: number
+	minScale?: number
+	maxScale?: number
+	adaptive?: boolean
+	targetFrameMs?: number
+	/** Сколько чужих фонарей считать (0 — отключить). */
+	extraLights?: number
 }
 
 export class Renderer {
@@ -120,13 +140,16 @@ export class Renderer {
 	private scale: number = CONFIG.render.maxScale
 	private frameTimeAverage = 16
 	private sinceScaleCheck = 0
-	/** Потолок devicePixelRatio — главный рычаг производительности на телефонах. */
+	// Качество: по умолчанию берём значения из конфига.
 	private pixelRatioCap: number = CONFIG.render.maxPixelRatio
 	private minScale: number = CONFIG.render.minScale
 	private maxScale: number = CONFIG.render.maxScale
 	private adaptive: boolean = CONFIG.render.adaptiveResolution
-	/** Целевое время кадра в мс: выше — снижаем разрешение, ниже — возвращаем. */
-	private targetFrameMs = 17.5
+	private targetFrameMs = 16.7
+	private extraLightLimit: number = MAX_EXTRA_FLASHES
+	private readonly extraOrigin = new Float32Array(MAX_EXTRA_FLASHES * 3)
+	private readonly extraDirection = new Float32Array(MAX_EXTRA_FLASHES * 3)
+	private readonly extraCone = new Float32Array(MAX_EXTRA_FLASHES * 4)
 	private clearR: number = CONFIG.render.clearColor[0]
 	private clearG: number = CONFIG.render.clearColor[1]
 	private clearB: number = CONFIG.render.clearColor[2]
@@ -293,24 +316,24 @@ export class Renderer {
 	}
 
 	/**
-	 * Настройка качества из меню. Шейдеры и геометрия не меняются — меняется
-	 * только размер буфера, а это самый большой выигрыш FPS на телефоне.
+	 * Профиль качества. На слабых ПК и ноутах режем pixel ratio и
+	 * разрешаем буферу упасть ниже — это самый дешёвый выигрыш FPS.
 	 */
-	setQuality(options: {
-		maxPixelRatio: number
-		minScale: number
-		maxScale: number
-		adaptive: boolean
-		targetFrameMs?: number
-	}): void {
-		this.pixelRatioCap = Math.max(0.5, options.maxPixelRatio)
-		this.minScale = Math.max(0.35, Math.min(options.minScale, options.maxScale))
-		this.maxScale = Math.max(this.minScale, options.maxScale)
-		this.adaptive = options.adaptive
-		this.targetFrameMs = options.targetFrameMs ?? this.targetFrameMs
+	setQuality(options: QualityOptions): void {
+		if (options.maxPixelRatio !== undefined) {
+			this.pixelRatioCap = Math.max(0.5, Math.min(3, options.maxPixelRatio))
+		}
+		if (options.minScale !== undefined) this.minScale = Math.max(0.3, Math.min(1, options.minScale))
+		if (options.maxScale !== undefined) this.maxScale = Math.max(0.4, Math.min(1, options.maxScale))
+		if (this.maxScale < this.minScale) this.maxScale = this.minScale
+		if (options.adaptive !== undefined) this.adaptive = options.adaptive
+		if (options.targetFrameMs !== undefined) {
+			this.targetFrameMs = Math.max(8, Math.min(40, options.targetFrameMs))
+		}
+		if (options.extraLights !== undefined) {
+			this.extraLightLimit = Math.max(0, Math.min(MAX_EXTRA_FLASHES, Math.round(options.extraLights)))
+		}
 		this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale))
-		this.frameTimeAverage = this.targetFrameMs
-		this.sinceScaleCheck = 0
 		this.resize()
 	}
 
@@ -329,7 +352,7 @@ export class Renderer {
 	/** Следит за временем кадра и плавно подбирает внутреннее разрешение. */
 	private updateAdaptiveResolution(frameMs: number): void {
 		if (!this.adaptive) return
-		// Одиночные всплески (сборка мусора, догрузка) не должны ронять разрешение насовсем.
+		// Длинные фризы (загрузка, свёрнутая вкладка) не должны ронять картинку.
 		const sample = Math.min(frameMs, 80)
 		this.frameTimeAverage += (sample - this.frameTimeAverage) * 0.12
 		this.sinceScaleCheck++
@@ -337,11 +360,13 @@ export class Renderer {
 		this.sinceScaleCheck = 0
 
 		const previous = this.scale
-		if (this.frameTimeAverage > this.targetFrameMs + 3 && this.scale > this.minScale) {
-			// Просели сильно — сбрасываем разрешение крупным шагом, чтобы лаг не тянулся.
-			const step = this.frameTimeAverage > this.targetFrameMs * 1.8 ? 0.14 : 0.07
+		const slow = this.targetFrameMs * 1.18
+		const fast = this.targetFrameMs * 0.8
+		if (this.frameTimeAverage > slow && this.scale > this.minScale) {
+			// Чем сильнее просадка, тем резче сбрасываем разрешение.
+			const step = this.frameTimeAverage > this.targetFrameMs * 1.6 ? 0.14 : 0.07
 			this.scale = Math.max(this.minScale, this.scale - step)
-		} else if (this.frameTimeAverage < this.targetFrameMs - 4 && this.scale < this.maxScale) {
+		} else if (this.frameTimeAverage < fast && this.scale < this.maxScale) {
 			this.scale = Math.min(this.maxScale, this.scale + 0.04)
 		}
 		if (previous !== this.scale) this.resize()
@@ -411,6 +436,33 @@ export class Renderer {
 			)
 		} else {
 			gl.uniform4f(this.uniforms.uFlashCone, 0.9, 0.99, 1, 0)
+		}
+
+		// Фонари товарищей: один проход, без лишних draw call'ов.
+		const extras = env?.extraFlashes
+		const extraCount = Math.min(extras?.length ?? 0, this.extraLightLimit)
+		if (extras && extraCount > 0) {
+			for (let i = 0; i < extraCount; i++) {
+				const light = extras[i]
+				if (!light) continue
+				const length = Math.hypot(light.dirX, light.dirY, light.dirZ) || 1
+				this.extraOrigin[i * 3] = light.x
+				this.extraOrigin[i * 3 + 1] = light.y
+				this.extraOrigin[i * 3 + 2] = light.z
+				this.extraDirection[i * 3] = light.dirX / length
+				this.extraDirection[i * 3 + 1] = light.dirY / length
+				this.extraDirection[i * 3 + 2] = light.dirZ / length
+				this.extraCone[i * 4] = Math.cos(light.outer ?? CONFIG.horror.flashOuter)
+				this.extraCone[i * 4 + 1] = Math.cos(light.inner ?? CONFIG.horror.flashInner)
+				this.extraCone[i * 4 + 2] = light.range ?? CONFIG.horror.flashRange
+				this.extraCone[i * 4 + 3] = light.power ?? CONFIG.horror.flashPower
+			}
+			gl.uniform1i(this.uniforms.uExtraCount, extraCount)
+			gl.uniform3fv(this.uniforms["uExtraOrigin[0]"], this.extraOrigin)
+			gl.uniform3fv(this.uniforms["uExtraDirection[0]"], this.extraDirection)
+			gl.uniform4fv(this.uniforms["uExtraCone[0]"], this.extraCone)
+		} else {
+			gl.uniform1i(this.uniforms.uExtraCount, 0)
 		}
 
 		let drawCalls = 0

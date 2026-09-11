@@ -65,7 +65,6 @@
 			</div>
 
 			<div id="fps" class="fps-meter" hidden><b id="fps-value">60</b> FPS</div>
-
 			<div id="toast" class="toast" hidden></div>
 			<div id="letterbox" class="letterbox"><i></i><i></i></div>
 			<div id="fade" class="fade"></div>
@@ -178,18 +177,18 @@
 						<label class="setting__label" for="set-invert">Инвертировать вертикаль</label>
 						<input class="setting__check" id="set-invert" type="checkbox" />
 					</div>
-					<div class="setting setting--switch">
-						<label class="setting__label" for="set-fps">Показывать FPS</label>
-						<input class="setting__check" id="set-fps" type="checkbox" />
-					</div>
 					<div class="setting">
-						<label class="setting__label" for="set-quality">Качество картинки</label>
+						<label class="setting__label" for="set-quality">Качество графики</label>
 						<select class="setting__select" id="set-quality">
-							<option value="auto">Авто (подстраивается)</option>
-							<option value="low">Низкое — максимум FPS</option>
+							<option value="auto">Авто (под ваше железо)</option>
+							<option value="low">Низкое — слабые ПК и ноуты</option>
 							<option value="medium">Среднее</option>
 							<option value="high">Высокое</option>
 						</select>
+					</div>
+					<div class="setting setting--switch">
+						<label class="setting__label" for="set-fps">Показывать FPS</label>
+						<input class="setting__check" id="set-fps" type="checkbox" />
 					</div>
 					<div class="menu__row">
 						<button class="button button--primary" id="settings-back" type="button">Назад</button>

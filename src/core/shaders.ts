@@ -57,8 +57,24 @@ uniform vec3 uFlashOrigin;
 uniform vec3 uFlashDirection;
 /** x = cos внешнего угла, y = cos внутреннего, z = дальность, w = сила. */
 uniform vec4 uFlashCone;
+/** Фонари чужих игроков в онлайне: до трёх ближайших. */
+uniform int uExtraCount;
+uniform vec3 uExtraOrigin[3];
+uniform vec3 uExtraDirection[3];
+uniform vec4 uExtraCone[3];
 
 out vec4 fragColor;
+
+/** Один spot-свет: та же формула, что и для своего фонаря. */
+vec3 spotLight(vec3 baseColor, vec3 n, vec3 origin, vec3 dir, vec4 cone) {
+	vec3 toFragment = vWorld - origin;
+	float dist = length(toFragment);
+	vec3 direction = toFragment / max(dist, 0.0001);
+	float shape = smoothstep(cone.x, cone.y, dot(direction, dir));
+	float reach = clamp(1.0 - dist / max(cone.z, 0.001), 0.0, 1.0);
+	float lambert = max(dot(n, -direction), 0.12);
+	return baseColor * shape * reach * reach * lambert * cone.w;
+}
 
 void main() {
 	vec3 n = normalize(vNormal);
@@ -70,13 +86,13 @@ void main() {
 	lit *= mix(uLightMul, 1.0, vEmissive);
 
 	if (uFlashCone.w > 0.001) {
-		vec3 toFragment = vWorld - uFlashOrigin;
-		float distance = length(toFragment);
-		vec3 direction = toFragment / max(distance, 0.0001);
-		float cone = smoothstep(uFlashCone.x, uFlashCone.y, dot(direction, uFlashDirection));
-		float reach = clamp(1.0 - distance / max(uFlashCone.z, 0.001), 0.0, 1.0);
-		float lambert = max(dot(n, -direction), 0.12);
-		lit += vColor * cone * reach * reach * lambert * uFlashCone.w;
+		lit += spotLight(vColor, n, uFlashOrigin, uFlashDirection, uFlashCone);
+	}
+
+	// Фонари товарищей по комнате — видно, куда они светят.
+	for (int i = 0; i < 3; i++) {
+		if (i >= uExtraCount) break;
+		lit += spotLight(vColor, n, uExtraOrigin[i], uExtraDirection[i], uExtraCone[i]);
 	}
 
 	float fogAmount = 1.0 - exp(-pow(vDistance * uFogDensity, 2.0));

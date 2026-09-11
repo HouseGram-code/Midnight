@@ -6,7 +6,7 @@
  */
 import { requireElement, setHidden, setText } from "./dom.js";
 export const GAME_VERSION = "1.0.1-beta";
-const QUALITY_LEVELS = ["auto", "low", "medium", "high"];
+export const QUALITY_LEVELS = ["auto", "low", "medium", "high"];
 const STORAGE_KEY = "school3d.settings.v1";
 const DEFAULT_SETTINGS = {
     sensitivity: 1,
@@ -49,7 +49,7 @@ export function saveSettings(settings) {
     }
 }
 /** Android пробуем повернуть автоматически; iPhone показывает аккуратную подсказку. */
-function requestMobileLandscape() {
+export function requestMobileLandscape() {
     if (!matchMedia("(pointer: coarse)").matches && innerWidth > 900)
         return;
     document.body.dataset.landscape = "1";
@@ -101,7 +101,8 @@ export class Menu {
         this.bindPanel("menu-open-controls", "controls");
         this.bindPanel("menu-open-about", "about");
         requireElement("menu-open-online").addEventListener("click", () => {
-            requestMobileLandscape();
+            // В панели онлайна надо вводить имя и код комнаты, поэтому экран
+            // не переворачиваем — альбомный режим включится уже при старте матча.
             this.showPanel("online");
             this.callbacks.onOnline();
         });
@@ -147,8 +148,8 @@ export class Menu {
             this.volumeInput.value = "80";
             this.brightnessInput.value = "100";
             this.invertInput.checked = false;
-            this.fpsInput.checked = false;
-            this.qualityInput.value = "auto";
+            this.fpsInput.checked = DEFAULT_SETTINGS.showFps;
+            this.qualityInput.value = DEFAULT_SETTINGS.quality;
             this.refreshLabels();
             saveSettings(this.settings);
             this.callbacks.onSettingsChange(this.settings);

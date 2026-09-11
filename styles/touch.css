@@ -34,29 +34,15 @@ body[data-touch="1"] .crosshair {
 	top: 0;
 	right: 0;
 	bottom: 0;
-	width: 58%;
-	pointer-events: auto;
-	touch-action: none;
-}
-
-/* Левая часть — зона стика: палец можно ставить в любом месте. */
-.touch__zone {
-	position: absolute;
-	left: 0;
-	top: 0;
-	bottom: 0;
-	width: 42%;
+	width: 62%;
 	pointer-events: auto;
 	touch-action: none;
 }
 
 .touch__stick {
 	position: absolute;
-	left: calc(var(--side) + 74px);
-	bottom: calc(var(--pad) + 74px);
-	margin: -74px 0 0 -74px;
-	opacity: 0.5;
-	transition: opacity 0.12s ease;
+	left: var(--side);
+	bottom: var(--pad);
 	width: 148px;
 	height: 148px;
 	border-radius: 50%;
@@ -67,10 +53,6 @@ body[data-touch="1"] .crosshair {
 	touch-action: none;
 	display: grid;
 	place-items: center;
-}
-
-.touch__stick[data-on="1"] {
-	opacity: 1;
 }
 
 .touch__knob {
@@ -212,3 +194,30 @@ body[data-touch="1"] .crosshair {
 .landscape-hint__phone { position: relative; width: 74px; height: 42px; margin-bottom: 10px; border: 3px solid #b9dfff; border-radius: 10px; box-shadow: 0 0 22px rgba(100,180,255,.28); animation: turn-phone 1.8s ease-in-out infinite; }
 .landscape-hint__phone i { position: absolute; right: 4px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: #b9dfff; }
 @keyframes turn-phone { 0%,20% { transform: rotate(90deg); } 65%,100% { transform: rotate(0deg); } }
+
+/* Плавающий стик: зона движения — вся левая часть экрана. */
+.touch__zone {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 42%;
+	pointer-events: auto;
+	touch-action: none;
+}
+
+.touch__look {
+	width: 58%;
+}
+
+.touch__stick {
+	opacity: 0.55;
+	transform: translate(0, 0);
+	transition: opacity 0.12s linear;
+}
+
+/* Когда палец на экране, стик встаёт в точку касания. */
+.touch__stick[data-on="1"] {
+	opacity: 1;
+	transform: translate(-50%, -50%);
+}

@@ -9,11 +9,6 @@ import { requireElement, setHidden, setText } from "./dom.js"
 
 export const GAME_VERSION = "1.0.1-beta"
 
-/** Качество картинки: auto сам подбирает разрешение по времени кадра. */
-export type QualityLevel = "auto" | "low" | "medium" | "high"
-
-const QUALITY_LEVELS: readonly QualityLevel[] = ["auto", "low", "medium", "high"]
-
 export interface GameSettings {
 	/** Чувствительность мыши, множитель 0.3…2.5. */
 	sensitivity: number
@@ -23,11 +18,16 @@ export interface GameSettings {
 	brightness: number
 	/** Инвертировать вертикальную ось. */
 	invertY: boolean
-	/** Показывать счётчик FPS поверх игры. */
+	/** Показывать счётчик FPS в игре. */
 	showFps: boolean
-	/** Качество картинки (влияет только на разрешение рендера). */
+	/** Профиль качества картинки. */
 	quality: QualityLevel
 }
+
+/** Уровни графики: «авто» сам подбирает разрешение под железо. */
+export type QualityLevel = "auto" | "low" | "medium" | "high"
+
+export const QUALITY_LEVELS: ReadonlyArray<QualityLevel> = ["auto", "low", "medium", "high"]
 
 const STORAGE_KEY = "school3d.settings.v1"
 
@@ -73,7 +73,7 @@ export function saveSettings(settings: GameSettings): void {
 }
 
 /** Android пробуем повернуть автоматически; iPhone показывает аккуратную подсказку. */
-function requestMobileLandscape(): void {
+export function requestMobileLandscape(): void {
 	if (!matchMedia("(pointer: coarse)").matches && innerWidth > 900) return
 	document.body.dataset.landscape = "1"
 	const element = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void }
@@ -134,7 +134,8 @@ export class Menu {
 		this.bindPanel("menu-open-controls", "controls")
 		this.bindPanel("menu-open-about", "about")
 		requireElement("menu-open-online").addEventListener("click", () => {
-			requestMobileLandscape()
+			// В панели онлайна надо вводить имя и код комнаты, поэтому экран
+			// не переворачиваем — альбомный режим включится уже при старте матча.
 			this.showPanel("online")
 			this.callbacks.onOnline()
 		})
@@ -182,8 +183,8 @@ export class Menu {
 			this.volumeInput.value = "80"
 			this.brightnessInput.value = "100"
 			this.invertInput.checked = false
-			this.fpsInput.checked = false
-			this.qualityInput.value = "auto"
+			this.fpsInput.checked = DEFAULT_SETTINGS.showFps
+			this.qualityInput.value = DEFAULT_SETTINGS.quality
 			this.refreshLabels()
 			saveSettings(this.settings)
 			this.callbacks.onSettingsChange(this.settings)

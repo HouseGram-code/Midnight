@@ -6,8 +6,8 @@
  * пробел, T, Esc, цифры пояса). Поэтому игровая логика осталась нетронутой.
  *
  * Раскладка:
- *   • левая часть экрана — «плавающий» стик: основание появляется там, где палец;
- *   • правая часть экрана — обзор пальцем со сглаживанием;
+ *   • левый низ  — стик движения, полный наклон вперёд = бег;
+ *   • правая часть экрана — обзор пальцем;
  *   • правый низ — крупные кнопки действий;
  *   • правый верх — пауза, карта, чат, полный экран;
  *   • низ по центру — пояс предметов 1…6.
@@ -37,10 +37,19 @@ const STICK_RADIUS = 60
 const DEAD_ZONE = 0.14
 /** Множитель чувствительности обзора относительно мышиной. */
 const LOOK_SCALE = 1.9
-/** Вертикаль на телефоне ощущается резче — приглушаем. */
+/** По вертикали палец должен быть спокойнее — иначе камера прыгает. */
 const LOOK_PITCH_SCALE = 0.82
-/** Сглаживание обзора: 1 — без фильтра, меньше — плавнее. */
+/** Сглаживание обзора: 0 — резко, 1 — очень мягко. */
 const LOOK_SMOOTH = 0.55
+
+/** Короткая вибрация под пальцем: так кнопки ощущаются живыми. */
+function buzz(ms: number): void {
+	try {
+		navigator.vibrate?.(ms)
+	} catch {
+		// Вибрация — необязательная роскошь.
+	}
+}
 
 interface ButtonSpec {
 	label: string
@@ -55,15 +64,6 @@ interface ButtonSpec {
 	className?: string
 }
 
-/** Короткая вибрация под палец: попадание по кнопке чувствуется. */
-function buzz(ms: number): void {
-	try {
-		navigator.vibrate?.(ms)
-	} catch {
-		// Вибрации может не быть — это не ошибка.
-	}
-}
-
 export class TouchControls {
 	readonly enabled: boolean
 
@@ -76,11 +76,13 @@ export class TouchControls {
 	private lookId = -1
 	private lastLookX = 0
 	private lastLookY = 0
-	/** Накопленный сдвиг обзора: отдаём его игре равными порциями каждый кадр. */
-	private lookVelX = 0
-	private lookVelY = 0
 	private stickCenterX = 0
 	private stickCenterY = 0
+
+	private zone: HTMLElement | null = null
+	/** Накопленный за кадр обзор — отдаём его плавно в frame(). */
+	private lookVelX = 0
+	private lookVelY = 0
 
 	private sprintAuto = false
 	private sprintManual = false
@@ -102,6 +104,9 @@ export class TouchControls {
 	setVisible(visible: boolean): void {
 		const root = this.root
 		if (!root) return
+		if (root.hidden !== visible) {
+			// hidden уже в нужном состоянии
+		}
 		if (root.hidden === !visible) return
 		root.hidden = !visible
 		if (!visible) this.releaseAll()
@@ -110,27 +115,6 @@ export class TouchControls {
 	/** Кнопка чата нужна только в онлайне. */
 	setOnline(online: boolean): void {
 		if (this.chatBtn) this.chatBtn.hidden = !online
-	}
-
-	/**
-	 * Отдаёт игре сглаженный сдвиг обзора. Вызывается раз в кадр из главного
-	 * цикла: так поворот не зависит от того, сколько событий pointermove
-	 * успел прислать браузер, и дрожание пальца не видно.
-	 */
-	frame(): void {
-		if (!this.enabled) return
-		if (Math.abs(this.lookVelX) < 0.01 && Math.abs(this.lookVelY) < 0.01) {
-			this.lookVelX = 0
-			this.lookVelY = 0
-			return
-		}
-		const dx = this.lookVelX * LOOK_SMOOTH
-		const dy = this.lookVelY * LOOK_SMOOTH
-		this.lookVelX -= dx
-		this.lookVelY -= dy
-		if (this.callbacks.isTyping()) return
-		const step = this.input.sensitivity * LOOK_SCALE
-		this.input.addLook(dx * step, dy * step * LOOK_PITCH_SCALE)
 	}
 
 	// ------------------------------------------------------------------ вёрстка
@@ -144,7 +128,8 @@ export class TouchControls {
 		look.className = "touch__look"
 		root.append(look)
 
-		// Зона стика занимает всю левую часть: палец можно ставить куда удобно.
+		// Зона движения: вся левая половина низа экрана. Стик появляется
+		// ровно там, где коснулись — не нужно целиться в кружок.
 		const zone = document.createElement("div")
 		zone.className = "touch__zone"
 		root.append(zone)
@@ -172,6 +157,8 @@ export class TouchControls {
 		this.root = root
 		this.stickBase = stick
 		this.knob = knob
+		this.zone = zone
+		this.parkStick()
 
 		// Правый низ: то, чем играют постоянно.
 		this.addButton(actions, {
@@ -186,25 +173,14 @@ export class TouchControls {
 			event.preventDefault()
 			this.sprintManual = !this.sprintManual
 			sprint.dataset.on = this.sprintManual ? "1" : ""
-			buzz(12)
 			this.applySprint()
 		})
 		this.addButton(actions, { label: "🧎", hint: "сесть", code: "KeyC", toggle: true })
 		this.addButton(actions, { label: "⤴", hint: "прыжок", code: "Space", tap: true })
 
 		// Правый верх: служебное.
-		this.addButton(top, {
-			label: "⏸",
-			code: "Escape",
-			tap: true,
-			className: "touch__btn touch__btn--small",
-		})
-		this.addButton(top, {
-			label: "🗺",
-			code: "KeyM",
-			tap: true,
-			className: "touch__btn touch__btn--small",
-		})
+		this.addButton(top, { label: "⏸", code: "Escape", tap: true, className: "touch__btn touch__btn--small" })
+		this.addButton(top, { label: "🗺", code: "KeyM", tap: true, className: "touch__btn touch__btn--small" })
 		this.chatBtn = this.addButton(top, {
 			label: "💬",
 			code: "KeyT",
@@ -256,7 +232,6 @@ export class TouchControls {
 		if (spec.press) {
 			button.addEventListener("pointerdown", (event: PointerEvent) => {
 				event.preventDefault()
-				buzz(12)
 				spec.press?.()
 			})
 			return button
@@ -269,7 +244,6 @@ export class TouchControls {
 				event.preventDefault()
 				const on = !this.held.has(code)
 				button.dataset.on = on ? "1" : ""
-				buzz(12)
 				this.key(on ? "keydown" : "keyup", code)
 			})
 			return button
@@ -279,7 +253,6 @@ export class TouchControls {
 			button.addEventListener("pointerdown", (event: PointerEvent) => {
 				event.preventDefault()
 				button.dataset.on = "1"
-				buzz(10)
 				this.key("keydown", code)
 				window.setTimeout(() => {
 					this.key("keyup", code)
@@ -290,27 +263,19 @@ export class TouchControls {
 		}
 
 		// Кнопка удержания: держим клавишу, пока палец на экране.
+		button.addEventListener("pointerdown", (event: PointerEvent) => {
+			event.preventDefault()
+			button.dataset.on = "1"
+			this.key("keydown", code)
+		})
 		const release = (): void => {
 			if (!this.held.has(code)) return
 			button.dataset.on = ""
 			this.key("keyup", code)
 		}
-		button.addEventListener("pointerdown", (event: PointerEvent) => {
-			event.preventDefault()
-			button.dataset.on = "1"
-			buzz(10)
-			// Палец часто съезжает с круглой кнопки: ловим его до самого отпускания,
-			// иначе «Взять» сбрасывается само и предмет не подбирается.
-			try {
-				button.setPointerCapture(event.pointerId)
-			} catch {
-				// Старый WebView без pointer capture — работаем как раньше.
-			}
-			this.key("keydown", code)
-		})
 		button.addEventListener("pointerup", release)
 		button.addEventListener("pointercancel", release)
-		button.addEventListener("lostpointercapture", release)
+		button.addEventListener("pointerleave", release)
 		return button
 	}
 
@@ -319,14 +284,18 @@ export class TouchControls {
 	private readonly onStickDown = (event: PointerEvent): void => {
 		if (this.stickId >= 0 || !this.stickBase) return
 		this.stickId = event.pointerId
-		// Плавающий стик: основание встаёт ровно под палец.
+		// Центр стика — точка касания.
 		this.stickCenterX = event.clientX
 		this.stickCenterY = event.clientY
-		const base = this.stickBase
-		base.style.left = `${event.clientX}px`
-		base.style.top = `${event.clientY}px`
-		base.style.bottom = "auto"
-		base.dataset.on = "1"
+		this.stickBase.style.left = `${event.clientX}px`
+		this.stickBase.style.top = `${event.clientY}px`
+		this.stickBase.style.bottom = "auto"
+		this.stickBase.dataset.on = "1"
+		try {
+			;(event.target as HTMLElement).setPointerCapture?.(event.pointerId)
+		} catch {
+			// Захват пальца — только улучшение, без него тоже работает.
+		}
 		this.moveStick(event.clientX, event.clientY)
 		event.preventDefault()
 	}
@@ -336,6 +305,11 @@ export class TouchControls {
 		this.lookId = event.pointerId
 		this.lastLookX = event.clientX
 		this.lastLookY = event.clientY
+		try {
+			;(event.target as HTMLElement).setPointerCapture?.(event.pointerId)
+		} catch {
+			// не критично
+		}
 		event.preventDefault()
 	}
 
@@ -346,18 +320,51 @@ export class TouchControls {
 			return
 		}
 		if (event.pointerId !== this.lookId) return
-		// Android присылает движения пачкой: учитываем все точки, а не только последнюю.
-		const coalesced =
+		// Браузер может склеить несколько движений в одно событие:
+		// берём все точки, иначе обзор рвётся на низком FPS.
+		const points =
 			typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : []
-		const points: Array<{ clientX: number; clientY: number }> =
-			coalesced.length > 0 ? coalesced : [event]
-		for (const point of points) {
-			this.lookVelX += point.clientX - this.lastLookX
-			this.lookVelY += point.clientY - this.lastLookY
+		const samples = points.length > 0 ? points : [event]
+		let dx = 0
+		let dy = 0
+		for (const point of samples) {
+			dx += point.clientX - this.lastLookX
+			dy += point.clientY - this.lastLookY
 			this.lastLookX = point.clientX
 			this.lastLookY = point.clientY
 		}
+		if (this.callbacks.isTyping()) return
+		const step = this.input.sensitivity * LOOK_SCALE
+		this.lookVelX += dx * step
+		this.lookVelY += dy * step * LOOK_PITCH_SCALE
 		event.preventDefault()
+	}
+
+	/**
+	 * Вызывается каждый кадр: отдаёт накопленный обзор порциями,
+	 * чтобы камера шла плавно даже при рваных событиях тачскрина.
+	 */
+	frame(): void {
+		if (!this.enabled) return
+		if (this.lookVelX === 0 && this.lookVelY === 0) return
+		const takeX = this.lookVelX * LOOK_SMOOTH
+		const takeY = this.lookVelY * LOOK_SMOOTH
+		this.lookVelX -= takeX
+		this.lookVelY -= takeY
+		if (Math.abs(this.lookVelX) < 0.01) this.lookVelX = 0
+		if (Math.abs(this.lookVelY) < 0.01) this.lookVelY = 0
+		this.input.addLook(takeX, takeY)
+	}
+
+	/** Вернуть стик в базовый угол между касаниями. */
+	private parkStick(): void {
+		const stick = this.stickBase
+		if (!stick) return
+		stick.dataset.on = ""
+		stick.style.left = ""
+		stick.style.top = ""
+		stick.style.bottom = ""
+		if (this.knob) this.knob.style.transform = "translate(0px, 0px)"
 	}
 
 	private readonly onPointerUp = (event: PointerEvent): void => {
@@ -365,7 +372,6 @@ export class TouchControls {
 			this.stickId = -1
 			this.input.padX = 0
 			this.input.padY = 0
-			if (this.knob) this.knob.style.transform = "translate(0px, 0px)"
 			this.parkStick()
 			if (this.sprintAuto) {
 				this.sprintAuto = false
@@ -373,21 +379,7 @@ export class TouchControls {
 			}
 			return
 		}
-		if (event.pointerId === this.lookId) {
-			this.lookId = -1
-			this.lookVelX = 0
-			this.lookVelY = 0
-		}
-	}
-
-	/** Палец убран — основание стика возвращается в свой угол. */
-	private parkStick(): void {
-		const base = this.stickBase
-		if (!base) return
-		base.style.left = ""
-		base.style.top = ""
-		base.style.bottom = ""
-		base.dataset.on = ""
+		if (event.pointerId === this.lookId) this.lookId = -1
 	}
 
 	private moveStick(clientX: number, clientY: number): void {
@@ -395,15 +387,6 @@ export class TouchControls {
 		let dy = clientY - this.stickCenterY
 		const length = Math.hypot(dx, dy)
 		if (length > STICK_RADIUS) {
-			// Палец ушёл дальше радиуса — тянем стик за ним, как в мобильных шутерах.
-			const overflow = length - STICK_RADIUS
-			this.stickCenterX += (dx / length) * overflow
-			this.stickCenterY += (dy / length) * overflow
-			const base = this.stickBase
-			if (base) {
-				base.style.left = `${this.stickCenterX}px`
-				base.style.top = `${this.stickCenterY}px`
-			}
 			dx = (dx / length) * STICK_RADIUS
 			dy = (dy / length) * STICK_RADIUS
 		}
@@ -424,6 +407,7 @@ export class TouchControls {
 		if (wantSprint !== this.sprintAuto) {
 			this.sprintAuto = wantSprint
 			this.applySprint()
+			if (wantSprint) buzz(12)
 		}
 	}
 
@@ -445,12 +429,11 @@ export class TouchControls {
 		this.input.padY = 0
 		this.stickId = -1
 		this.lookId = -1
-		this.lookVelX = 0
-		this.lookVelY = 0
 		this.sprintAuto = false
 		this.sprintManual = false
 		this.sprintOn = false
-		if (this.knob) this.knob.style.transform = "translate(0px, 0px)"
+		this.lookVelX = 0
+		this.lookVelY = 0
 		this.parkStick()
 		for (const code of Array.from(this.held)) this.key("keyup", code)
 		this.held.clear()

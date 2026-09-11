@@ -24,7 +24,13 @@ import { PlayerController } from "./player/controller.js"
 import { requireCanvas, requireElement, setHidden, setText } from "./ui/dom.js"
 import { GameHud } from "./ui/gameHud.js"
 import { Hud } from "./ui/hud.js"
-import { GAME_VERSION, Menu, saveSettings, type GameSettings } from "./ui/menu.js"
+import {
+	GAME_VERSION,
+	Menu,
+	requestMobileLandscape,
+	saveSettings,
+	type GameSettings,
+} from "./ui/menu.js"
 import { Minimap } from "./ui/minimap.js"
 import { NetHud } from "./ui/netHud.js"
 import { OnlinePanel } from "./ui/online.js"
@@ -123,6 +129,8 @@ async function boot(): Promise<void> {
 			`сборка ${scene.buildMs.toFixed(0)} мс`,
 	)
 
+	const fpsMeter = requireElement("fps")
+	const fpsValue = requireElement("fps-value")
 	const deathScreen = requireElement("death")
 	const deathText = requireElement("death-text")
 	const winScreen = requireElement("win")
@@ -134,78 +142,62 @@ async function boot(): Promise<void> {
 	let invertY = false
 	let gameRef: Game | null = null
 
-	// Счётчик FPS поверх игры: включается в настройках.
-	const fpsMeter = requireElement("fps")
-	const fpsValue = requireElement("fps-value")
-	let showFps = false
-	let nextFpsUpdate = 0
-
-	// Пресеты качества: меняем только размер буфера рендера, картинка остаётся той же.
-	const touchDevice = isTouchDevice()
-	const qualityPreset = (
-		quality: GameSettings["quality"],
-	): {
-		maxPixelRatio: number
-		minScale: number
-		maxScale: number
-		adaptive: boolean
-		targetFrameMs: number
-	} => {
-		switch (quality) {
-			case "low":
-				return {
-					maxPixelRatio: 1,
-					minScale: 0.45,
-					maxScale: 0.7,
-					adaptive: false,
-					targetFrameMs: 16.7,
-				}
-			case "medium":
-				return {
-					maxPixelRatio: touchDevice ? 1.35 : 1.5,
-					minScale: 0.6,
-					maxScale: 0.85,
-					adaptive: false,
-					targetFrameMs: 16.7,
-				}
-			case "high":
-				return {
-					maxPixelRatio: touchDevice ? 1.75 : 2,
-					minScale: 0.85,
-					maxScale: 1,
-					adaptive: false,
-					targetFrameMs: 16.7,
-				}
-			default:
-				// Авто: на телефоне сразу режем пиксель-ратио, иначе кадры проседают.
-				return touchDevice
-					? {
-							maxPixelRatio: 1.4,
-							minScale: 0.5,
-							maxScale: 0.95,
-							adaptive: true,
-							targetFrameMs: 17.5,
-						}
-					: {
-							maxPixelRatio: 2,
-							minScale: 0.62,
-							maxScale: 1,
-							adaptive: true,
-							targetFrameMs: 16.7,
-						}
+	/**
+	 * Профили качества. На слабых ПК и ноутах самое важное — не рендерить
+	 * в ретина-разрешении и разрешить автоподбору уронить буфер пониже.
+	 */
+	const qualityPreset = (quality: GameSettings["quality"]) => {
+		if (quality === "low") {
+			return {
+				maxPixelRatio: 1,
+				minScale: 0.45,
+				maxScale: 0.7,
+				adaptive: true,
+				targetFrameMs: 20,
+				extraLights: 0,
+			}
+		}
+		if (quality === "medium") {
+			return {
+				maxPixelRatio: touchMode ? 1.35 : 1.5,
+				minScale: 0.6,
+				maxScale: 0.85,
+				adaptive: true,
+				targetFrameMs: 17.5,
+				extraLights: 2,
+			}
+		}
+		if (quality === "high") {
+			return {
+				maxPixelRatio: touchMode ? 1.75 : 2,
+				minScale: 0.85,
+				maxScale: 1,
+				adaptive: false,
+				targetFrameMs: 16.7,
+				extraLights: 3,
+			}
+		}
+		// Авто: телефоны и слабые машины стартуют скромнее.
+		const cores = navigator.hardwareConcurrency ?? 4
+		const weak = touchMode || cores <= 4
+		return {
+			maxPixelRatio: touchMode ? 1.4 : weak ? 1.25 : 2,
+			minScale: weak ? 0.5 : 0.62,
+			maxScale: weak ? 0.9 : 1,
+			adaptive: true,
+			targetFrameMs: weak ? 17.5 : 16.7,
+			extraLights: weak ? 2 : 3,
 		}
 	}
 
 	const applySettings = (settings: GameSettings): void => {
 		invertY = settings.invertY
+		renderer.setQuality(qualityPreset(settings.quality))
+		setHidden(fpsMeter, !settings.showFps)
 		input.sensitivity = CONFIG.camera.sensitivity * settings.sensitivity
 		audio.setMasterVolume(settings.volume)
 		menuMusic.setVolume(settings.volume * 0.5)
 		gameRef?.setBrightness(settings.brightness)
-		renderer.setQuality(qualityPreset(settings.quality))
-		showFps = settings.showFps
-		setHidden(fpsMeter, !settings.showFps)
-		nextFpsUpdate = 0
 		saveSettings(settings)
 	}
 
@@ -248,7 +240,7 @@ async function boot(): Promise<void> {
 			onDead: (reason?: string) => {
 				input.exitPointerLock()
 				touch.setVisible(false)
-				setText(deathText, reason ?? "Учительница нашла вас. Школа не отпустила.")
+				setText(deathText, reason ?? "Учительница нашла вас. ���кола не отпустила.")
 				setHidden(deathScreen, false)
 			},
 			onWon: () => {
@@ -280,6 +272,8 @@ async function boot(): Promise<void> {
 		overlay.hidePause()
 		overlay.hideStart()
 		menu.hide()
+		// Поворот и полный экран — только на старте игры, не в меню.
+		requestMobileLandscape()
 		// Внутри игры музыки нет — только шаги и шорохи.
 		menuMusic.stop()
 		audio.resume()
@@ -340,6 +334,8 @@ async function boot(): Promise<void> {
 			overlay.hidePause()
 			overlay.hideStart()
 			menu.hide()
+			// Альбомный режим просим только когда матч реально начался.
+			requestMobileLandscape()
 			menuMusic.stop()
 			audio.resume()
 			game.paused = false
@@ -425,7 +421,7 @@ async function boot(): Promise<void> {
 	input.onKey("KeyH", () => debugHud.toggleHelp())
 	if (debug) {
 		input.onKey("KeyR", () => player.teleport(spawn))
-		// Цифры теперь — пояс предметов, поэтому телепорт просим явно: ?teleport=1
+		// Цифры те��е��ь — пояс предметов, поэтому телепорт просим явно: ?teleport=1
 		if (params.get("teleport") === "1") {
 			SPAWNS.forEach((point, index) => {
 				if (index > 8) return
@@ -457,11 +453,10 @@ async function boot(): Promise<void> {
 		})
 	}
 
+	let lastFpsPaint = 0
 	const loop = (now: number): void => {
 		requestAnimationFrame(loop)
 		const steps = clock.tick(now)
-		// Обзор с телефона копится между кадрами — отдаём его сглаженной порцией.
-		touch.frame()
 		const mouse = input.consumeMouseDelta()
 		// Шагать можно всегда, пока игра идёт: клавиатуре захват курсора не нужен.
 		// Обзор мышью — только когда курсор действительно захвачен.
@@ -476,7 +471,18 @@ async function boot(): Promise<void> {
 			invertY,
 		)
 
+		// Плавный обзор пальцем на телефоне.
+		touch.frame()
+
 		const stats = renderer.render(game.camera, clock.frameMs, game.environment)
+
+		// Счётчик FPS обновляем четыре раза в секунду: DOM — дорого.
+		if (menu.settings.showFps && now - lastFpsPaint > 250) {
+			lastFpsPaint = now
+			const fps = Math.round(clock.fps)
+			setText(fpsValue, String(fps))
+			fpsMeter.dataset.low = fps < 25 ? "2" : fps < 45 ? "1" : "0"
+		}
 
 		if (debug) {
 			debugHud.update(
@@ -497,12 +503,6 @@ async function boot(): Promise<void> {
 				},
 				now,
 			)
-		}
-		if (showFps && now >= nextFpsUpdate) {
-			nextFpsUpdate = now + 250
-			const fps = Math.round(clock.fps)
-			fpsValue.textContent = String(fps)
-			fpsMeter.dataset.low = fps < 30 ? "2" : fps < 50 ? "1" : ""
 		}
 		if (minimap.visible) minimap.render(player.x, player.z, player.yaw, now)
 

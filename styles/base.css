@@ -1094,19 +1094,22 @@ kbd {
 	.online__code-value { text-align: left; }
 }
 
-/* Выпадающий список в настройках (качество картинки). */
+/* Выпадающий список настроек (качество графики). */
 .setting__select {
-	width: 100%;
-	padding: 8px 10px;
-	border-radius: 8px;
+	appearance: none;
+	flex: 1 1 auto;
+	min-width: 0;
+	padding: 8px 12px;
+	border-radius: 10px;
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	background: rgba(12, 14, 20, 0.82);
 	color: inherit;
 	font: inherit;
-	background: rgba(16, 19, 28, 0.9);
-	border: 1px solid rgba(200, 210, 235, 0.22);
+	font-size: 14px;
 	cursor: pointer;
 }
 
 .setting__select:focus-visible {
-	outline: 2px solid var(--accent);
+	outline: 2px solid rgba(255, 255, 255, 0.45);
 	outline-offset: 2px;
 }

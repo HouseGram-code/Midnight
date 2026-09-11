@@ -8,6 +8,11 @@
  */
 import { CONFIG } from "../config.js";
 import { MeshBuilder } from "../core/mesh.js";
+import { MAX_EXTRA_FLASHES, } from "../core/renderer.js";
+/** Дальше этого расстояния чужой фонарь уже не считаем. */
+const REMOTE_FLASH_VIEW = 46;
+/** Общий пустой массив — чтобы не сорить в GC каждый кадр. */
+const EMPTY_FLASHES = [];
 import { BUILDING } from "../world/layout.js";
 import { Teacher } from "../entities/teacher.js";
 import { NavGraph } from "./nav.js";
@@ -93,6 +98,8 @@ export class Game {
     flashlightOn = false;
     exitStage = 0;
     barricade = 0;
+    /** Переиспользуемый буфер для чужих фонарей. */
+    flashBuffer = [];
     barricadeTarget = 0;
     exitAngle = 0;
     night = 0;
@@ -363,6 +370,9 @@ export class Game {
             this.barricadeTarget = done.progress;
         if (this.exitStage >= EXIT_STAGES.length) {
             this.barricadeTarget = 1;
+            // Важно для онлайна: баррикада разобрана и у нас тоже,
+            // так что у двери появится подсказка «E — выбежать из школы».
+            this.barricade = Math.max(this.barricade, 0.9);
             this.hud.toast(`${who} открыл выход! Бегите к дверям`, 5);
             this.netSay(`${who} открыл выход — все к дверям!`);
             return;
@@ -885,7 +895,7 @@ export class Game {
         this.barricadeVisible = true;
         this.teacherHuman = false;
         this.classDoorVisible = true;
-        // Дверь доигрывает кат-сцену: скрип, хлопок створки и шёпот вслед.
+        // Дверь доигрывает кат-с��ену: скрип, хлопок створки и шёпот вслед.
         this.classDoorTarget = 1.35;
         this.audio.play("door_open", { volume: 0.7, delay: 0.3 });
         this.audio.play("door_full", { volume: 0.4, delay: 1.15 });
@@ -1084,7 +1094,7 @@ export class Game {
     }
     /**
      * Онлайн: смерть не выкидывает из забега. Игрок проиграл, но остаётся
-     * призраком: летает внутри школы, смотрит за своими, но ничего не трогает
+     * при����раком: летает внутри школы, смотрит за своими, но ничего не трогает
      * и учительница его больше не видит.
      */
     startGhost() {
@@ -1416,6 +1426,15 @@ export class Game {
                 ready: has,
             }));
         }
+        else if (this.online) {
+            // Дверь уже открыта (сами или товарищ) — выйти может любой.
+            consider(EXIT_DOOR.x, 1.4, EXIT_DOOR.z - 0.15, () => ({
+                kind: "exit",
+                label: "выбежать из школы",
+                hold: 0.45,
+                ready: true,
+            }));
+        }
         for (const spot of HIDE_SPOTS) {
             consider(spot.x, 1.2, spot.z, () => ({
                 kind: "hide",
@@ -1655,7 +1674,7 @@ export class Game {
         }
         this.updateAtmosphere(dt);
     }
-    /** Шаги — зациклённая запись игрока, скорость зависит от режима движения. */
+    /** Ш��ги — зациклённая запись игрока, скорость зависит от режима движения. */
     updateFootsteps(dt) {
         const moving = this.player.onGround && this.player.speed > 0.7;
         if (moving && !this.stepsOn) {
@@ -2030,7 +2049,47 @@ export class Game {
                     outer: CONFIG.horror.flashOuter,
                 }
                 : null,
+            extraFlashes: this.remoteFlashes(),
         };
+    }
+    /**
+     * Фонари других игроков. Шейдер умеет три источника, поэтому
+     * берём ближайшие и только в радиусе, где свет вообще видно.
+     */
+    remoteFlashes() {
+        const online = this.online;
+        if (!online || !online.live)
+            return EMPTY_FLASHES;
+        this.flashBuffer.length = 0;
+        for (const player of online.players.values()) {
+            if (!player.flashlight || player.hidden || player.down || player.escaped)
+                continue;
+            const dx = player.x - this.camera.x;
+            const dz = player.z - this.camera.z;
+            const distance = Math.hypot(dx, dz);
+            if (distance > REMOTE_FLASH_VIEW)
+                continue;
+            this.flashBuffer.push({
+                distance,
+                light: {
+                    x: player.x,
+                    y: player.y + (player.crouching ? 1.18 : 1.55),
+                    z: player.z,
+                    // Питч по сети не гоняем — светим чуть вниз, как в руке.
+                    dirX: -Math.sin(player.yaw) * 0.985,
+                    dirY: -0.17,
+                    dirZ: -Math.cos(player.yaw) * 0.985,
+                    range: CONFIG.horror.flashRange * 0.85,
+                    power: CONFIG.horror.flashPower * 0.8,
+                    inner: CONFIG.horror.flashInner,
+                    outer: CONFIG.horror.flashOuter,
+                },
+            });
+        }
+        if (this.flashBuffer.length === 0)
+            return EMPTY_FLASHES;
+        this.flashBuffer.sort((a, b) => a.distance - b.distance);
+        return this.flashBuffer.slice(0, MAX_EXTRA_FLASHES).map((entry) => entry.light);
     }
 }
 /** Через сколько секунд после начала игры свет гаснет сам. */
