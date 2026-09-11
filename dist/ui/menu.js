@@ -68,6 +68,19 @@ export function requestMobileLandscape() {
         // iOS Safari не разрешает программный lock — CSS попросит повернуть устройство.
     }
 }
+/** Закрытый акт: трясём карточку и объясняем, почему не запускается. */
+function refuseLocked(card) {
+    card.classList.remove("act--shake");
+    // Перезапуск анимации: без reflow класс не сработает второй раз.
+    void card.offsetWidth;
+    card.classList.add("act--shake");
+    try {
+        navigator.vibrate?.(18);
+    }
+    catch {
+        // вибрации может не быть
+    }
+}
 export class Menu {
     callbacks;
     screen = requireElement("menu");
@@ -75,6 +88,7 @@ export class Menu {
         root: requireElement("menu-root"),
         settings: requireElement("menu-settings"),
         controls: requireElement("menu-controls"),
+        acts: requireElement("menu-acts"),
         about: requireElement("menu-about"),
         online: requireElement("menu-online"),
     };
@@ -96,7 +110,24 @@ export class Menu {
         this.callbacks = callbacks;
         this.settings = loadSettings();
         setText(this.versionEl, `версия ${GAME_VERSION}`);
-        this.playButton.addEventListener("click", () => { requestMobileLandscape(); this.callbacks.onPlay(); });
+        // Кнопка «Играть» ведёт на выбор акта, а не сразу в игру.
+        this.playButton.addEventListener("click", () => this.showPanel("acts"));
+        requireElement("act-1").addEventListener("click", () => {
+            requestMobileLandscape();
+            this.callbacks.onPlay();
+        });
+        const lockedAct = requireElement("act-2");
+        const actsNote = requireElement("acts-note");
+        lockedAct.addEventListener("click", () => {
+            refuseLocked(lockedAct);
+            setText(actsNote, "Акт II закрыт: он ещё в разработке. Пока играется Акт I.");
+        });
+        const onlineLockedAct = requireElement("online-act-2");
+        onlineLockedAct.addEventListener("click", () => {
+            onlineLockedAct.classList.remove("act--shake");
+            void onlineLockedAct.offsetWidth;
+            onlineLockedAct.classList.add("act--shake");
+        });
         this.bindPanel("menu-open-settings", "settings");
         this.bindPanel("menu-open-controls", "controls");
         this.bindPanel("menu-open-about", "about");
@@ -106,7 +137,7 @@ export class Menu {
             this.showPanel("online");
             this.callbacks.onOnline();
         });
-        for (const id of ["settings-back", "controls-back", "about-back"]) {
+        for (const id of ["settings-back", "controls-back", "about-back", "acts-back"]) {
             requireElement(id).addEventListener("click", () => this.showPanel("root"));
         }
         this.sensitivityInput.value = String(Math.round(this.settings.sensitivity * 100));

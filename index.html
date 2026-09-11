@@ -156,6 +156,53 @@
 					<p class="menu__version" id="menu-version">версия</p>
 				</section>
 
+				<section id="menu-acts" class="menu__panel menu__panel--acts" hidden>
+					<h2 class="menu__heading">Выбор акта</h2>
+					<p class="menu__text menu__text--tight">История идёт по актам. Первый уже открыт.</p>
+					<div class="acts">
+						<button class="act act--school" id="act-1" type="button">
+							<span class="act__art act__art--school" aria-hidden="true">
+								<i class="act__moon"></i>
+								<i class="act__school"></i>
+								<i class="act__windows"></i>
+								<i class="act__beam"></i>
+							</span>
+							<span class="act__body">
+								<span class="act__no">Акт I</span>
+								<strong class="act__name">Школа</strong>
+								<small class="act__desc">Ночная смена, пять предметов и баррикада у выхода.</small>
+								<span class="act__go">▶ Играть</span>
+							</span>
+						</button>
+						<button class="act act--locked" id="act-2" type="button" aria-disabled="true">
+							<span class="act__art act__art--blast" aria-hidden="true">
+								<i class="act__sky"></i>
+								<i class="act__blast"></i>
+								<i class="act__ruins"></i>
+								<i class="act__smoke"></i>
+								<i class="act__sparks"></i>
+							</span>
+							<span class="act__lock" aria-hidden="true">
+								<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8">
+									<path d="M7 10V7.5a5 5 0 0 1 10 0V10" />
+									<rect x="4.5" y="10" width="15" height="10.5" rx="2.2" />
+									<circle cx="12" cy="15.4" r="1.5" fill="currentColor" stroke="none" />
+								</svg>
+							</span>
+							<span class="act__body">
+								<span class="act__no">Акт II</span>
+								<strong class="act__name">Вернуться. Взрыв</strong>
+								<small class="act__desc">Вы возвращаетесь в школу — и успеваете выйти до взрыва.</small>
+								<span class="act__badge">🔒 Недоступен — в разработке</span>
+							</span>
+						</button>
+					</div>
+					<p class="menu__note" id="acts-note">Акт II появится в следующих обновлениях.</p>
+					<div class="menu__row">
+						<button class="button" id="acts-back" type="button">Назад</button>
+					</div>
+				</section>
+
 				<section id="menu-settings" class="menu__panel" hidden>
 					<h2 class="menu__heading">Настройки</h2>
 					<div class="setting">
@@ -242,6 +289,12 @@
 						<span class="creator-emblem creator-emblem--profile" aria-hidden="true"></span>
 						<span class="online__owner-copy"><strong>goh</strong><small>Официальный создатель игры</small></span>
 						<span class="online__owner-verified">✓ подтверждено</span>
+					</div>
+
+					<div class="online__acts" role="group" aria-label="Акт">
+						<span class="online__acts-label">Акт</span>
+						<button class="act-chip act-chip--active" id="online-act-1" type="button">I · Школа</button>
+						<button class="act-chip act-chip--locked" id="online-act-2" type="button" aria-disabled="true">🔒 II · Вернуться. Взрыв</button>
 					</div>
 
 					<div class="online__modes" role="tablist" aria-label="Способ подключения">
