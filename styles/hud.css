@@ -560,6 +560,24 @@
 .net-tag[data-owner] .net-tag__name,
 .net-self[data-owner] .net-self__name { color: #ffe39a !important; }
 
+.net-tag[data-host]:not([data-owner]) .net-tag__name::before,
+.net-self[data-host]:not([data-owner]) .net-self__name::before {
+	content: "✓";
+	display: inline-grid;
+	place-items: center;
+	width: 1.15em;
+	height: 1.15em;
+	margin-right: 0.35em;
+	border: 1px solid rgba(145, 205, 255, 0.68);
+	border-radius: 0.38em;
+	vertical-align: -0.12em;
+	background: rgba(39, 131, 222, 0.24);
+	color: #b9ddff;
+	font-size: 0.82em;
+	line-height: 1;
+	box-shadow: 0 0 8px rgba(39, 131, 222, 0.24);
+}
+
 .net-tag__bar {
 	display: block;
 	margin-top: 3px;

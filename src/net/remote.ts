@@ -103,10 +103,10 @@ function buildShirtPrint(mesh: MeshBuilder, hipY: number, chestTop: number): voi
 	const rows = RYZIK_SHIRT_PIXELS.length
 	const columns = RYZIK_SHIRT_PIXELS[0]?.length ?? 0
 	if (rows === 0 || columns === 0) return
-	const x0 = -0.155
-	const x1 = 0.155
-	const y0 = hipY + 0.09
-	const y1 = chestTop - 0.08
+	const x0 = -0.185
+	const x1 = 0.185
+	const y0 = hipY + 0.035
+	const y1 = chestTop - 0.035
 	const tileW = (x1 - x0) / columns
 	const tileH = (y1 - y0) / rows
 	for (let row = 0; row < rows; row++) {

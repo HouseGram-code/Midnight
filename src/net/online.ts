@@ -48,6 +48,7 @@ export interface NetPlayer {
 	id: string
 	name: string
 	owner: boolean
+	host: boolean
 	index: number
 	skin: PlayerSkin
 	x: number
@@ -162,6 +163,7 @@ export class OnlineGame {
 				id: player.id,
 				name: player.name,
 				owner: player.owner,
+				host: player.id === match.host,
 				index: player.index,
 				skin: onlineSkinFor(player.skin, player.index),
 				x: 17.5,
@@ -293,6 +295,7 @@ export class OnlineGame {
 				id,
 				name: this.nameOf(id),
 				owner: false,
+				host: id === this.match.host,
 				index,
 				skin: onlineSkinFor(payload.q, index),
 				x: Number(payload.x ?? 0),

@@ -326,7 +326,7 @@ async function boot() {
             });
             const me = match.players.find((player) => player.id === session.id);
             netHud.reset();
-            netHud.setSelf(session.name, onlineSkinFor(me?.skin ?? 0, me?.index ?? 0).tag, session.owner);
+            netHud.setSelf(session.name, onlineSkinFor(me?.skin ?? 0, me?.index ?? 0).tag, session.owner, match.host === session.id);
             netHud.setVisible(true);
             netHud.addMessage("Школа", `В классе ${match.players.length} человек. Чат — клавиша T`, "#9fd6ff", true);
             clock.resume(performance.now());

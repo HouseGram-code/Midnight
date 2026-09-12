@@ -12,6 +12,7 @@ export interface TagItem {
 	id: string
 	name: string
 	owner: boolean
+	host: boolean
 	color: string
 	x: number
 	y: number
@@ -85,9 +86,10 @@ export class NetHud {
 		}
 	}
 
-	setSelf(name: string, color: string, owner = false): void {
+	setSelf(name: string, color: string, owner = false, host = false): void {
 		setText(this.selfName, name)
 		this.selfTag.toggleAttribute("data-owner", owner)
+		this.selfTag.toggleAttribute("data-host", host)
 		this.selfName.style.color = color
 		this.selfTag.style.borderColor = `${color}55`
 	}
@@ -170,6 +172,7 @@ export class NetHud {
 
 			const label = item.hiding ? `${item.name} 🚪` : item.name
 			view.el.toggleAttribute("data-owner", item.owner)
+			view.el.toggleAttribute("data-host", item.host)
 			if (view.name.textContent !== label) {
 				view.name.textContent = label
 				view.name.style.color = item.color

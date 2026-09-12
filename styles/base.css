@@ -1226,6 +1226,20 @@ kbd {
 }
 .online-slot--owner { border-color: rgba(255, 209, 92, 0.42); background: rgba(74, 53, 16, 0.2); }
 .online-slot--owner .creator-emblem { margin: 0 -1px; }
+.online-slot--host { border-color: rgba(94, 159, 232, 0.5); }
+.online-slot__host {
+	display: inline-grid;
+	place-items: center;
+	width: 18px;
+	height: 18px;
+	margin-right: -2px;
+	border: 1px solid rgba(145, 205, 255, 0.62);
+	border-radius: 6px;
+	background: rgba(39, 131, 222, 0.2);
+	color: #b9ddff;
+	font: 900 12px/1 var(--font);
+	box-shadow: 0 0 10px rgba(39, 131, 222, 0.22);
+}
 
 .online-slot--empty {
 	color: var(--ink-faint);

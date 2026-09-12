@@ -350,7 +350,12 @@ async function boot(): Promise<void> {
 			})
 			const me = match.players.find((player) => player.id === session.id)
 			netHud.reset()
-			netHud.setSelf(session.name, onlineSkinFor(me?.skin ?? 0, me?.index ?? 0).tag, session.owner)
+			netHud.setSelf(
+				session.name,
+				onlineSkinFor(me?.skin ?? 0, me?.index ?? 0).tag,
+				session.owner,
+				match.host === session.id,
+			)
 			netHud.setVisible(true)
 			netHud.addMessage(
 				"Школа",
