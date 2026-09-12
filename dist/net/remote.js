@@ -6,6 +6,7 @@
  */
 import { shade } from "../core/mesh.js";
 import { buildItemModel } from "../game/items.js";
+import { RYZIK_SHIRT_PIXELS } from "./ryzikTexture.js";
 /** Код ездит по сети: 0 — обычный, 1 — ryzik3489. Новые варианты добавлять только в конец. */
 export function skinCode(id) {
     return id === "ryzik3489" ? 1 : 0;
@@ -69,12 +70,35 @@ export function onlineSkinFor(code, index) {
     if (skinIdFromCode(code) !== "ryzik3489")
         return skinFor(index);
     return {
+        id: "ryzik3489",
         shirt: [0.055, 0.06, 0.075],
         pants: [0.07, 0.09, 0.13],
         hair: [0.045, 0.035, 0.03],
         skin: [0.76, 0.58, 0.48],
         tag: "#f3a05e",
     };
+}
+/** Фото-принт на передней стороне футболки: маленькая цветная мозаика видна в 3D без текстурного шейдера. */
+function buildShirtPrint(mesh, hipY, chestTop) {
+    const rows = RYZIK_SHIRT_PIXELS.length;
+    const columns = RYZIK_SHIRT_PIXELS[0]?.length ?? 0;
+    if (rows === 0 || columns === 0)
+        return;
+    const x0 = -0.155;
+    const x1 = 0.155;
+    const y0 = hipY + 0.09;
+    const y1 = chestTop - 0.08;
+    const tileW = (x1 - x0) / columns;
+    const tileH = (y1 - y0) / rows;
+    for (let row = 0; row < rows; row++) {
+        for (let column = 0; column < columns; column++) {
+            const left = x0 + column * tileW;
+            const right = left + tileW + 0.001;
+            const top = y1 - row * tileH;
+            const bottom = top - tileH - 0.001;
+            mesh.box(left, bottom, -0.128, right, top, -0.121, RYZIK_SHIRT_PIXELS[row][column]);
+        }
+    }
 }
 function rotate(mesh, start, cx, cz, angle) {
     const sin = Math.sin(angle);
@@ -134,6 +158,8 @@ export function buildRemotePlayer(mesh, pose) {
     // Корпус и руки
     mesh.box(-0.21, hipY, -0.12, 0.21, chestTop, 0.12, skin.shirt);
     mesh.box(-0.21, chestTop - 0.1, -0.12, 0.21, chestTop, 0.12, shade(skin.shirt, 1.08));
+    if (skin.id === "ryzik3489")
+        buildShirtPrint(mesh, hipY, chestTop);
     // Рюкзак — чтобы со спины игрок читался сразу.
     mesh.box(-0.16, hipY + 0.08, 0.12, 0.16, chestTop - 0.06, 0.24, shade(skin.pants, 1.25));
     const armSwing = swing * 0.3;
