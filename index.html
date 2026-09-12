@@ -172,6 +172,9 @@
 						<button class="button button--online" id="menu-open-online" type="button">
 							<span class="button__mark">◉</span><span class="button__text">Онлайн</span><span class="button__badge">бета</span>
 						</button>
+						<button class="button button--skins" id="menu-open-skins" type="button">
+							<span class="button__mark">◆</span><span class="button__text">Скины</span><span class="button__badge button__badge--free">2 бесплатно</span>
+						</button>
 						<button class="button" id="menu-open-settings" type="button">
 							<span class="button__mark">⚙</span><span class="button__text">Настройки</span>
 						</button>
@@ -222,6 +225,49 @@
 					<p class="menu__note" id="acts-note">Акт II уже доступен. Это бета: сообщайте о найденных ошибках.</p>
 					<div class="menu__row">
 						<button class="button" id="acts-back" type="button">Назад</button>
+					</div>
+				</section>
+
+				<section id="menu-skins" class="menu__panel menu__panel--skins" hidden>
+					<div class="skins__head">
+						<div>
+							<p class="menu__eyebrow">персонаж · магазин</p>
+							<h2 class="menu__heading">Скины</h2>
+						</div>
+						<span class="skins__free-count">2 бесплатных</span>
+					</div>
+					<div class="skins__preview" id="skin-preview" data-skin="classic">
+						<div class="skin-avatar" aria-hidden="true">
+							<div class="skin-avatar__shadow"></div>
+							<div class="skin-avatar__head"></div>
+							<div class="skin-avatar__neck"></div>
+							<div class="skin-avatar__body"></div>
+							<div class="skin-avatar__arm skin-avatar__arm--left"></div>
+							<div class="skin-avatar__arm skin-avatar__arm--right"></div>
+							<div class="skin-avatar__leg skin-avatar__leg--left"></div>
+							<div class="skin-avatar__leg skin-avatar__leg--right"></div>
+						</div>
+						<div class="skins__preview-copy">
+							<span>Выбранный персонаж</span>
+							<strong id="skin-preview-name">Обычный</strong>
+							<small id="skin-preview-status">Надет</small>
+						</div>
+					</div>
+					<div class="skins__grid" role="list" aria-label="Доступные скины">
+						<button class="skin-card" type="button" data-skin="ryzik3489" aria-pressed="false">
+							<span class="skin-card__photo skin-card__photo--ryzik" aria-hidden="true"></span>
+							<span class="skin-card__copy"><strong>ryzik3489</strong><small>Авторский скин</small></span>
+							<span class="skin-card__price">Бесплатно</span>
+						</button>
+						<button class="skin-card skin-card--active" type="button" data-skin="classic" aria-pressed="true">
+							<span class="skin-card__photo skin-card__photo--classic" aria-hidden="true">🙂</span>
+							<span class="skin-card__copy"><strong>Обычный</strong><small>Классический ученик</small></span>
+							<span class="skin-card__price">Бесплатно</span>
+						</button>
+					</div>
+					<p class="skins__note">Нажмите на скин, чтобы сразу его надеть. Выбор сохранится в браузере.</p>
+					<div class="menu__row">
+						<button class="button button--primary" id="skins-back" type="button">Готово</button>
 					</div>
 				</section>
 

@@ -94,7 +94,18 @@ export function requestMobileLandscape(): void {
 	}
 }
 
-type Panel = "root" | "acts" | "settings" | "controls" | "about" | "online"
+type Panel = "root" | "acts" | "skins" | "settings" | "controls" | "about" | "online"
+type PlayerSkinId = "ryzik3489" | "classic"
+
+const SKIN_STORAGE_KEY = "school3d.skin.v1"
+
+function loadSkin(): PlayerSkinId {
+	try {
+		return localStorage.getItem(SKIN_STORAGE_KEY) === "ryzik3489" ? "ryzik3489" : "classic"
+	} catch {
+		return "classic"
+	}
+}
 
 export interface MenuCallbacks {
 	onPlay: (act: 1 | 2) => void
@@ -112,6 +123,7 @@ export class Menu {
 		settings: requireElement("menu-settings"),
 		controls: requireElement("menu-controls"),
 		acts: requireElement("menu-acts"),
+		skins: requireElement("menu-skins"),
 		about: requireElement("menu-about"),
 		online: requireElement("menu-online"),
 	}
@@ -128,10 +140,15 @@ export class Menu {
 	private readonly sensitivityValue = requireElement("set-sensitivity-value")
 	private readonly volumeValue = requireElement("set-volume-value")
 	private readonly brightnessValue = requireElement("set-brightness-value")
+	private readonly skinPreview = requireElement("skin-preview")
+	private readonly skinPreviewName = requireElement("skin-preview-name")
+	private readonly skinPreviewStatus = requireElement("skin-preview-status")
+	private readonly skinCards = Array.from(document.querySelectorAll<HTMLButtonElement>(".skin-card"))
 
 	settings: GameSettings
 	private panel: Panel = "root"
 	private visible = true
+	private selectedSkin: PlayerSkinId = loadSkin()
 
 	constructor(private readonly callbacks: MenuCallbacks) {
 		this.settings = loadSettings()
@@ -152,15 +169,28 @@ export class Menu {
 		this.bindPanel("menu-open-settings", "settings")
 		this.bindPanel("menu-open-controls", "controls")
 		this.bindPanel("menu-open-about", "about")
+		this.bindPanel("menu-open-skins", "skins")
 		requireElement("menu-open-online").addEventListener("click", () => {
 			// В панели онлайна надо вводить имя и код комнаты, поэтому экран
 			// не переворачиваем — альбомный режим включится уже при старте матча.
 			this.showPanel("online")
 			this.callbacks.onOnline()
 		})
-		for (const id of ["settings-back", "controls-back", "about-back", "acts-back"]) {
+		for (const id of ["settings-back", "controls-back", "about-back", "acts-back", "skins-back"]) {
 			requireElement(id).addEventListener("click", () => this.showPanel("root"))
 		}
+		for (const card of this.skinCards) {
+			card.addEventListener("click", () => {
+				this.selectedSkin = card.dataset.skin === "ryzik3489" ? "ryzik3489" : "classic"
+				try {
+					localStorage.setItem(SKIN_STORAGE_KEY, this.selectedSkin)
+				} catch {
+					// В приватном режиме скин работает до перезагрузки.
+				}
+				this.renderSkin()
+			})
+		}
+		this.renderSkin()
 
 		this.sensitivityInput.value = String(Math.round(this.settings.sensitivity * 100))
 		this.volumeInput.value = String(Math.round(this.settings.volume * 100))
@@ -225,6 +255,18 @@ export class Menu {
 		// Под списком сложности сразу пишем, что именно меняется.
 		const preset = DIFFICULTY_PRESETS[this.settings.difficulty]
 		setText(this.difficultyNote, `${preset.note} Жизней: ${preset.lives}.`)
+	}
+
+	private renderSkin(): void {
+		this.skinPreview.dataset.skin = this.selectedSkin
+		const ryzik = this.selectedSkin === "ryzik3489"
+		setText(this.skinPreviewName, ryzik ? "ryzik3489" : "Обычный")
+		setText(this.skinPreviewStatus, "Надет · бесплатно")
+		for (const card of this.skinCards) {
+			const active = card.dataset.skin === this.selectedSkin
+			card.classList.toggle("skin-card--active", active)
+			card.setAttribute("aria-pressed", String(active))
+		}
 	}
 
 	showPanel(panel: Panel): void {
