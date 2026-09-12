@@ -30,8 +30,9 @@ export class OnlineSession {
     name;
     phase = "idle";
     match = null;
-    /** Выбранная в панели сложность. */
+    /** Выбранная сложность (важна только для хоста). */
     difficulty = "normal";
+    act = 1;
     room = null;
     lobby = null;
     searchStart = 0;
@@ -61,6 +62,23 @@ export class OnlineSession {
     }
     get isHost() {
         return this.match ? this.match.host === this.id : false;
+    }
+    /**
+     * Сложность, которую хост раздаёт всем в матче.
+     * У остальных значение просто игнорируется.
+     */
+    setDifficulty(value) {
+        this.difficulty = value;
+    }
+    /** Акт, который хост раздаёт всем в матче. */
+    setAct(value) {
+        this.act = value;
+    }
+    get matchAct() {
+        return this.match?.act ?? this.act;
+    }
+    get matchDifficulty() {
+        return this.match?.difficulty ?? this.difficulty;
     }
     get isCodeRoom() {
         return this.codeRoom.length > 0;
@@ -175,10 +193,6 @@ export class OnlineSession {
             return;
         this.evaluate(elapsed);
     }
-    /** Сложность, которую разошлём всем, если мы хост. */
-    setDifficulty(value) { this.difficulty = value; }
-    /** Сложность текущего матча. */
-    get matchDifficulty() { return this.match?.difficulty ?? this.difficulty; }
     startCodeMatch() {
         if (!this.isCodeHost || this.phase !== "searching")
             return false;
@@ -191,6 +205,7 @@ export class OnlineSession {
             players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
             startIn: 3200,
             difficulty: this.difficulty,
+            act: this.act,
         };
         this.lobby?.send("match", info);
         return true;
@@ -218,6 +233,7 @@ export class OnlineSession {
             players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
             startIn: 3200,
             difficulty: this.difficulty,
+            act: this.act,
         };
         this.lobby?.send("match", info);
     }
@@ -247,6 +263,7 @@ export class OnlineSession {
             players,
             startIn: typeof payload.startIn === "number" ? payload.startIn : 3200,
             difficulty: typeof payload.difficulty === "string" ? payload.difficulty : "normal",
+            act: payload.act === 2 ? 2 : 1,
         };
         this.match = info;
         this.setPhase("found");

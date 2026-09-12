@@ -158,6 +158,24 @@ export function buildItemModel(mesh, kind, origin, scale = 1, lightOn = false) {
             part(mesh, origin, 0, 0.028 * s, 0, 0.03 * s, 0.012 * s, 0.05 * s, [0.9, 0.35, 0.2]);
             break;
         }
+        case "weapon": {
+            // обрез: ствол, цевьё, укороченный ложе
+            part(mesh, origin, 0, 0, -0.1 * s, 0.038 * s, 0.042 * s, 0.36 * s, STEEL_DARK);
+            part(mesh, origin, 0, -0.012 * s, -0.12 * s, 0.05 * s, 0.03 * s, 0.16 * s, BOARD);
+            part(mesh, origin, 0, -0.004 * s, 0.12 * s, 0.056 * s, 0.07 * s, 0.16 * s, BOARD_DARK);
+            part(mesh, origin, 0, -0.05 * s, 0.05 * s, 0.03 * s, 0.06 * s, 0.05 * s, BOARD_DARK);
+            part(mesh, origin, 0, -0.03 * s, 0.03 * s, 0.014 * s, 0.03 * s, 0.016 * s, STEEL);
+            part(mesh, origin, 0, 0.028 * s, 0.02 * s, 0.02 * s, 0.016 * s, 0.05 * s, STEEL);
+            break;
+        }
+        case "laptop": {
+            // ноутбук: основание, экран под углом, светящаяся матрица
+            part(mesh, origin, 0, 0, 0.02 * s, 0.3 * s, 0.026 * s, 0.22 * s, STEEL_DARK);
+            part(mesh, origin, 0, 0.005 * s, 0.05 * s, 0.24 * s, 0.006 * s, 0.13 * s, [0.22, 0.24, 0.28]);
+            part(mesh, origin, 0, 0.1 * s, -0.1 * s, 0.3 * s, 0.2 * s, 0.022 * s, STEEL);
+            part(mesh, origin, 0, 0.1 * s, -0.088 * s, 0.26 * s, 0.16 * s, 0.008 * s, lightOn ? [0.45, 0.85, 1] : [0.1, 0.13, 0.16], lightOn);
+            break;
+        }
         case "flashlight":
         default: {
             part(mesh, origin, 0, 0, 0.02 * s, 0.062 * s, 0.062 * s, 0.2 * s, PLASTIC);

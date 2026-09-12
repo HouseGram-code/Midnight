@@ -1,0 +1,217 @@
+/* ===== Акт II: таймер до взрыва и терминал взлома ===== */
+
+.act2-timer {
+	position: absolute;
+	top: clamp(56px, 8vh, 96px);
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	padding: 8px 22px 10px;
+	border-radius: 14px;
+	border: 1px solid rgba(255, 96, 78, 0.5);
+	background: rgba(24, 8, 8, 0.62);
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+	backdrop-filter: blur(6px);
+	pointer-events: none;
+	z-index: 6;
+}
+
+.act2-timer[hidden] {
+	display: none;
+}
+
+.act2-timer b {
+	font-size: clamp(26px, 4.2vw, 44px);
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 2px;
+	color: #ffd9d2;
+	text-shadow: 0 0 18px rgba(255, 80, 60, 0.55);
+	line-height: 1;
+}
+
+.act2-timer span {
+	font-size: clamp(10px, 1.5vw, 13px);
+	text-transform: uppercase;
+	letter-spacing: 3px;
+	color: rgba(255, 190, 180, 0.8);
+}
+
+.act2-timer--warn {
+	border-color: rgba(255, 70, 50, 0.9);
+	animation: act2-pulse 1s ease-in-out infinite;
+}
+
+.act2-timer--safe b {
+	color: #caffd8;
+	text-shadow: 0 0 18px rgba(60, 220, 130, 0.5);
+}
+
+@keyframes act2-pulse {
+	0%,
+	100% {
+		background: rgba(40, 8, 8, 0.62);
+	}
+	50% {
+		background: rgba(120, 16, 12, 0.72);
+	}
+}
+
+.captcha {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(4, 6, 10, 0.72);
+	backdrop-filter: blur(4px);
+	z-index: 40;
+	padding: 18px;
+}
+
+.captcha[hidden] {
+	display: none;
+}
+
+.captcha__panel {
+	width: min(560px, 100%);
+	padding: clamp(16px, 3vw, 26px);
+	border-radius: 18px;
+	border: 1px solid rgba(120, 220, 255, 0.28);
+	background: linear-gradient(180deg, rgba(12, 20, 30, 0.97), rgba(8, 12, 18, 0.97));
+	box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+	font-family: "Consolas", "SF Mono", ui-monospace, monospace;
+	color: #d6ecff;
+}
+
+.captcha__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid rgba(120, 220, 255, 0.18);
+}
+
+.captcha__head b {
+	font-size: clamp(13px, 2vw, 16px);
+	letter-spacing: 1px;
+	color: #8ff0ff;
+}
+
+.captcha__step {
+	font-size: 12px;
+	color: rgba(180, 220, 255, 0.65);
+}
+
+.captcha__hint {
+	margin: 14px 0 4px;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	color: rgba(150, 200, 235, 0.7);
+}
+
+.captcha__question {
+	margin: 0 0 16px;
+	font-size: clamp(16px, 2.8vw, 22px);
+	line-height: 1.35;
+	white-space: pre-line;
+	color: #f2f8ff;
+}
+
+.captcha__options {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.captcha__option {
+	padding: 14px 10px;
+	border-radius: 12px;
+	border: 1px solid rgba(130, 200, 240, 0.32);
+	background: rgba(20, 34, 48, 0.9);
+	color: #e8f4ff;
+	font-family: inherit;
+	font-size: clamp(15px, 2.4vw, 19px);
+	cursor: pointer;
+	transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.captcha__option:hover {
+	transform: translateY(-1px);
+	border-color: rgba(140, 240, 255, 0.75);
+	background: rgba(28, 52, 72, 0.95);
+}
+
+.captcha__option--ok {
+	border-color: rgba(90, 230, 150, 0.9);
+	background: rgba(20, 60, 40, 0.95);
+}
+
+.captcha__option--bad {
+	border-color: rgba(255, 100, 90, 0.9);
+	background: rgba(70, 20, 18, 0.95);
+}
+
+.captcha__status {
+	margin: 14px 0 0;
+	font-size: 13px;
+	line-height: 1.5;
+	color: rgba(190, 220, 245, 0.8);
+	min-height: 38px;
+}
+
+.captcha__progress {
+	margin-top: 8px;
+}
+
+.captcha__progress[hidden] {
+	display: none;
+}
+
+.captcha__track {
+	height: 10px;
+	border-radius: 999px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.09);
+}
+
+.captcha__bar {
+	height: 100%;
+	width: 0%;
+	border-radius: 999px;
+	background: linear-gradient(90deg, #2ee6a8, #7cf3ff);
+	box-shadow: 0 0 18px rgba(60, 230, 200, 0.45);
+	transition: width 0.3s linear;
+}
+
+.captcha__plabel {
+	display: block;
+	margin-top: 6px;
+	font-size: 12px;
+	letter-spacing: 1px;
+	color: rgba(160, 235, 255, 0.85);
+}
+
+.captcha__foot {
+	display: flex;
+	gap: 10px;
+	margin-top: 16px;
+}
+
+.captcha__foot .btn {
+	flex: 1;
+}
+
+@media (max-width: 520px) {
+	.captcha__options {
+		grid-template-columns: 1fr;
+	}
+
+	.captcha__foot {
+		flex-direction: column;
+	}
+}

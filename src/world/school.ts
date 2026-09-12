@@ -20,6 +20,7 @@ import {
 	type Wall,
 	type WindowOpening,
 } from "./layout.js"
+import { buildFloor2 } from "./floor2.js"
 import { bakeConstant, bakeLighting, lightsForBounds, type Light } from "./lighting.js"
 import { PALETTE } from "./palette.js"
 import * as P from "./props.js"
@@ -318,8 +319,12 @@ function buildRoomShell(room: Room, ctx: P.Ctx, lights: Light[]): void {
 	} else {
 		P.tiledFloor(mesh, room.x0, room.z0, room.x1, room.z1, floorTileSize(room), room.floorColor)
 	}
-	mesh.horizontalQuad(room.x0, room.z0, room.x1, room.z1, room.height, PALETTE.ceiling, false)
-	ctx.collision.add(room.x0, room.height, room.z0, room.x1, room.height + CEILING_SLAB, room.z1)
+	// Лестничная клетка открыта вверх: там марш на второй этаж,
+	// потолок и плиту там ставит floor2.ts.
+	if (room.kind !== "stairwell") {
+		mesh.horizontalQuad(room.x0, room.z0, room.x1, room.z1, room.height, PALETTE.ceiling, false)
+		ctx.collision.add(room.x0, room.height, room.z0, room.x1, room.height + CEILING_SLAB, room.z1)
+	}
 
 	const [columns, rows] = room.lamps
 	const lampY = room.height - 0.16
@@ -635,6 +640,31 @@ function buildRestroom(room: Room, ctx: P.Ctx): void {
 }
 
 function buildStairwell(room: Room, ctx: P.Ctx): void {
+	// Прямой марш на второй этаж: 20 ступеней по 0.3 м, подъём 0.18 м — ровно 3.6 м.
+	const FLIGHT = 20
+	const RUN = 0.3
+	const RISE = 0.18
+	const startZ = 11.4
+	for (let i = 0; i < FLIGHT; i++) {
+		const z1 = startZ - i * RUN
+		const tone = i % 2 === 0 ? PALETTE.floorTile : shade(PALETTE.floorTile, 0.94)
+		P.solid(ctx, 6.1, 0, z1 - RUN, 10.4, RISE * (i + 1), z1, tone)
+	}
+	// перила вдоль марша
+	for (const x of [6.16, 10.34]) {
+		for (let i = 0; i < FLIGHT; i += 2) {
+			const z = startZ - i * RUN - RUN / 2
+			P.decor(ctx, x - 0.04, RISE * (i + 1), z - 0.04, x + 0.04, RISE * (i + 1) + 0.95, z + 0.04, PALETTE.metal)
+		}
+	}
+	P.plant(ctx, 6.4, 10.8, 1.6)
+	P.bin(ctx, 10.2, 10.9)
+	P.noticeBoard(ctx, "x1", 10.87, 7.6, 10.6, 7)
+	P.decor(ctx, 5.88, 1.2, 2.5, 5.9, 2.3, 5.5, PALETTE.plasticBlue)
+}
+
+/** Старая закрытая лестница (до второго этажа) — оставлена для истории. */
+function buildStairwellClosed(room: Room, ctx: P.Ctx): void {
 	// Марш поднимается на север: игрок входит с юга, от двери в коридор,
 	// и сразу видит ступени, а не торец площадки.
 	const steps = 7
@@ -810,6 +840,9 @@ export function buildSchool(): SchoolScene {
 				break
 		}
 	}
+
+	// Второй этаж со своими стенами, мебелью, светом и крышей.
+	buildFloor2({ get: (name) => chunks.get(name), collision, lights })
 
 	buildExterior(chunks)
 	collision.build()

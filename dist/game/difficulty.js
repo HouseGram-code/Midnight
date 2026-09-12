@@ -1,4 +1,12 @@
-/** Сложность игры: один набор настроек для одиночки и для онлайна. */
+/**
+ * Сложность игры.
+ *
+ * Один список уровней на всю игру: одиночный режим берёт его из настроек,
+ * онлайн — из выбора создателя комнаты (уровень приходит вместе с матчем).
+ *
+ * Уровень «Призрак» — режим без учительницы: она ушла из школы и никого
+ * не видит. Это спокойный осмотр школы и обучение управлению.
+ */
 export const DIFFICULTIES = ["ghost", "easy", "normal", "hard"];
 export const DIFFICULTY_PRESETS = {
     ghost: {
@@ -50,11 +58,10 @@ export const DIFFICULTY_PRESETS = {
         absent: false,
     },
 };
-/** Любую строку приводим к известной сложности. */
+/** Разбор значения из localStorage или из сети. */
 export function difficultyOf(raw) {
-    return typeof raw === "string" && DIFFICULTIES.includes(raw) ? raw : "normal";
+    return DIFFICULTIES.includes(raw) ? raw : "normal";
 }
-/** Пресет по любому вводу. */
 export function presetOf(raw) {
     return DIFFICULTY_PRESETS[difficultyOf(raw)];
 }

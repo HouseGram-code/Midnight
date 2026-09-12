@@ -124,7 +124,7 @@ async function boot() {
     };
     let invertY = false;
     let gameRef = null;
-    // Панель онлайна создаётся ниже, но сложность ей надо передавать из настроек.
+    // Панель онлайна создаётся ниже, а настройки применяются раньше.
     let onlinePanelRef = null;
     /**
      * Профили качества. На слабых ПК и ноутах самое важное — не рендерить
@@ -181,9 +181,9 @@ async function boot() {
         audio.setMasterVolume(settings.volume);
         menuMusic.setVolume(settings.volume * 0.5);
         gameRef?.setBrightness(settings.brightness);
-        // Сложность из настроек работает и в одиночной игре, и как стартовая в онлайне.
-        gameRef?.setDifficulty(settings.difficulty);
+        // Сложность из настроек идёт в одиночную игру; в онлайне её задаёт хост.
         onlinePanelRef?.setSoloDifficulty(settings.difficulty);
+        gameRef?.setDifficulty(settings.difficulty);
         saveSettings(settings);
     };
     // Сетевой HUD живёт поверх игры и молчит, пока мы не в онлайне.
@@ -191,7 +191,7 @@ async function boot() {
     // Управление с телефона: стик слева, обзор пальцем справа, крупные кнопки.
     const touch = new TouchControls(input, { isTyping: () => netHud.chatOpen });
     const menu = new Menu({
-        onPlay: () => startGame(),
+        onPlay: (act) => startGame(act),
         onSettingsChange: applySettings,
         onOnline: () => onlinePanel.open(),
         onOnlineClose: () => onlinePanel.close(),
@@ -244,7 +244,7 @@ async function boot() {
     });
     gameRef = game;
     applySettings(menu.settings);
-    const startGame = () => {
+    const startGame = (act = 1) => {
         hideEndScreens();
         // Обычная одиночная игра — сеть отключаем.
         game.leaveOnlineGame();
@@ -258,7 +258,7 @@ async function boot() {
         menuMusic.stop();
         audio.resume();
         game.paused = false;
-        game.startNewGame();
+        game.startNewGame(act);
         clock.resume(performance.now());
         touch.setOnline(false);
         touch.setVisible(true);
@@ -489,7 +489,7 @@ async function boot() {
     playMenuMusic();
     requestAnimationFrame(loop);
     if (params.get("autostart") === "1") {
-        startGame();
+        startGame(params.get("act") === "2" ? 2 : 1);
         if (params.get("skipintro") === "1")
             game.skipCutscene();
         if (params.get("night") === "1")

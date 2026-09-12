@@ -97,14 +97,21 @@ export class Teacher {
     alert = 0;
     /** Видит ли игрока сейчас. */
     seesPlayer = false;
-    /** Множители сложности: скорость, зрение, реакция, слух. */
+    /**
+     * Множители сложности: скорость, зрение, время реакции и слух.
+     * Меняются из настроек (одиночная игра) или приходят с матчем (онлайн).
+     */
     tuning = { speed: 1, sight: 1, notice: 1, hear: 1 };
-    /** Применить настройки сложности. */
+    /** Применить сложность. Значения меньше нуля не бывают. */
     setTuning(values) {
-        this.tuning.speed = Math.max(0.2, values.speed);
-        this.tuning.sight = Math.max(0.1, values.sight);
-        this.tuning.notice = Math.max(0.05, values.notice);
-        this.tuning.hear = Math.max(0, values.hear);
+        if (typeof values.speed === "number")
+            this.tuning.speed = Math.max(0.2, values.speed);
+        if (typeof values.sight === "number")
+            this.tuning.sight = Math.max(0.1, values.sight);
+        if (typeof values.notice === "number")
+            this.tuning.notice = Math.max(0.05, values.notice);
+        if (typeof values.hear === "number")
+            this.tuning.hear = Math.max(0, values.hear);
     }
     path = [];
     pathTimer = 0;
@@ -274,11 +281,10 @@ export class Teacher {
     canHear(senses) {
         if (senses.playerNoise <= 0.05)
             return false;
-        // На сложности «призрак» она не слышит вообще.
+        const distance = this.distanceTo(senses.playerX, senses.playerZ);
         if (this.tuning.hear <= 0)
             return false;
-        const distance = this.distanceTo(senses.playerX, senses.playerZ);
-        const range = TEACHER.hearRange * (0.35 + 0.65 * senses.playerNoise) * this.tuning.hear;
+        const range = TEACHER.hearRange * this.tuning.hear * (0.35 + 0.65 * senses.playerNoise);
         // За закрытой стеной звук больше не превращается во всевидение.
         // Через дверной проём луч остаётся свободным и бег всё ещё слышен.
         return distance <= range && this.hasLineOfSight(senses.playerX, senses.playerZ, 1.25);

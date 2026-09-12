@@ -44,6 +44,9 @@ export class GameHud {
 	private readonly letterboxEl = requireElement("letterbox")
 	private readonly skipEl = requireElement("skip-hint")
 	private readonly toastEl = requireElement("toast")
+	private readonly timerEl = requireElement("act2-timer")
+	private readonly timerValueEl = requireElement("act2-timer-value")
+	private readonly timerLabelEl = requireElement("act2-timer-label")
 
 	private hearts = -1
 	private maxHearts = 5
@@ -54,9 +57,26 @@ export class GameHud {
 	private holdValue = -1
 	private damageTimer = 0
 	private toastTimer = 0
+	private timerSignature = "-"
 
 	setVisible(visible: boolean): void {
 		setHidden(this.root, !visible)
+	}
+
+	/**
+	 * Таймер до взрыва (акт II).
+	 * `null` — таймера нет; `defused` — система взломана.
+	 */
+	setTimer(text: string | null, label = "до взрыва", mode: "normal" | "warn" | "safe" = "normal"): void {
+		const signature = text === null ? "-" : `${text}|${label}|${mode}`
+		if (signature === this.timerSignature) return
+		this.timerSignature = signature
+		setHidden(this.timerEl, text === null)
+		if (text === null) return
+		setText(this.timerValueEl, text)
+		setText(this.timerLabelEl, label)
+		this.timerEl.classList.toggle("act2-timer--warn", mode === "warn")
+		this.timerEl.classList.toggle("act2-timer--safe", mode === "safe")
 	}
 
 	setLives(current: number, max = 5): void {
@@ -213,6 +233,8 @@ export class GameHud {
 	}
 
 	reset(): void {
+		this.timerSignature = "-"
+		this.setTimer(null)
 		this.hotbarSignature = "-"
 		this.setHotbar([])
 		this.setFade(0)

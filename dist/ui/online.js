@@ -3,7 +3,7 @@ import { isMockMode, LoopbackClient, RealtimeClient } from "../net/realtime.js";
 import { MAX_PLAYERS, MIN_PLAYERS, OnlineSession, SEARCH_SECONDS } from "../net/session.js";
 import { skinFor } from "../net/remote.js";
 import { requireElement, setHidden, setText } from "./dom.js";
-import { DIFFICULTY_PRESETS, difficultyOf, presetOf } from "../game/difficulty.js";
+import { DIFFICULTY_PRESETS, difficultyOf } from "../game/difficulty.js";
 const NAME_KEY = "school3d.name.v1";
 const OWNER_KEY = "school3d.owner.v1";
 const OWNER_NAME = "goh";
@@ -68,9 +68,14 @@ export class OnlinePanel {
     ringLabel = requireElement("online-ring-label");
     rosterEl = requireElement("online-roster");
     searchBox = requireElement("online-search");
-    diffNote = requireElement("online-diff-note");
     diffChips = Array.from(document.querySelectorAll("#online-difficulty [data-diff]"));
+    diffNote = requireElement("online-diff-note");
+    actChips = [
+        requireElement("online-act-1"),
+        requireElement("online-act-2"),
+    ];
     difficulty = "normal";
+    act = 1;
     session = null;
     client = null;
     mock = isMockMode();
@@ -123,49 +128,58 @@ export class OnlinePanel {
         });
         this.soloButton.addEventListener("click", () => { this.callbacks.onClick(); this.session?.cancelSearch(); this.callbacks.onSolo(); });
         for (const chip of this.diffChips) {
-            chip.addEventListener("click", () => { this.callbacks.onClick(); this.chooseDifficulty(chip.dataset.diff ?? "normal"); });
+            chip.addEventListener("click", () => this.chooseDifficulty(chip.dataset.diff ?? "normal"));
         }
+        this.actChips[0]?.addEventListener("click", () => this.chooseAct(1));
+        this.actChips[1]?.addEventListener("click", () => this.chooseAct(2));
         this.renderDifficulty();
+        this.renderAct();
         requireElement("online-back").addEventListener("click", () => { this.callbacks.onClick(); this.leaveSession(); this.callbacks.onBack(); });
     }
     get isSearching() { return this.session?.phase === "searching"; }
-    /** Пришла сложность из настроек игры — используем её как стартовую. */
+    get profileSaved() { return this.savedName.length >= 2 && cleanUserName(this.nameInput.value) === this.savedName; }
+    get ownerActive() { return this.ownerAccess && isOwnerName(this.savedName); }
+    open() { setHidden(this.soloButton, true); this.switchMode("random", false); this.renderDifficulty(); this.startLoop(); }
+    /** Сложность из общих настроек: в онлайне она же идёт по умолчанию. */
     setSoloDifficulty(value) {
-        if (this.session && this.session.phase !== "idle")
-            return;
         this.difficulty = difficultyOf(value);
         this.session?.setDifficulty(this.difficulty);
         this.renderDifficulty();
     }
-    chooseDifficulty(value) {
-        if (this.difficultyLocked) {
-            this.setStatus("Сложность задаёт хост", "Сложность выбирает создатель комнаты.");
-            return;
-        }
-        this.difficulty = difficultyOf(value);
+    /** Выбор акта для общего забега: его раздаёт хост. */
+    chooseAct(act) {
+        this.callbacks.onClick();
+        this.act = act;
+        this.session?.setAct(act);
+        this.renderAct();
+    }
+    renderAct() {
+        this.actChips.forEach((chip, index) => {
+            const active = index + 1 === this.act;
+            chip.classList.toggle("act--active", active);
+            chip.setAttribute("aria-selected", String(active));
+        });
+    }
+    chooseDifficulty(raw) {
+        this.callbacks.onClick();
+        this.difficulty = difficultyOf(raw);
         this.session?.setDifficulty(this.difficulty);
         this.renderDifficulty();
     }
-    /** В чужой комнате сложность менять нельзя. */
-    get difficultyLocked() {
-        return this.mode === "code" && this.activeCode.length > 0 && !this.codeHost;
-    }
+    /** В чужой комнате сложность только показываем: её выбирает создатель. */
     renderDifficulty() {
-        const preset = DIFFICULTY_PRESETS[this.difficulty];
-        const locked = this.difficultyLocked;
+        const locked = this.mode === "code" && this.activeCode.length > 0 && !this.codeHost;
         for (const chip of this.diffChips) {
-            const active = (chip.dataset.diff ?? "") === this.difficulty;
+            const active = chip.dataset.diff === this.difficulty;
             chip.classList.toggle("diff-chip--active", active);
-            chip.setAttribute("aria-pressed", String(active));
+            chip.setAttribute("aria-selected", String(active));
             chip.disabled = locked;
         }
+        const preset = DIFFICULTY_PRESETS[this.difficulty];
         setText(this.diffNote, locked
             ? "Сложность выбирает создатель комнаты."
             : `${preset.note} Жизней: ${preset.lives}.`);
     }
-    get profileSaved() { return this.savedName.length >= 2 && cleanUserName(this.nameInput.value) === this.savedName; }
-    get ownerActive() { return this.ownerAccess && isOwnerName(this.savedName); }
-    open() { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop(); }
     close() { this.stopLoop(); }
     reset() { this.leaveSession(); this.pending = null; this.startAt = 0; this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren(); this.showCodeSetup(); this.setStatus("Готовы к следующей игре", "Выберите случайную игру или комнату по коду."); this.refreshButtons(); }
     switchMode(mode, click = true) {
@@ -186,7 +200,6 @@ export class OnlinePanel {
         setHidden(this.searchBox, true);
         this.loader.dataset.mode = "idle";
         this.rosterEl.replaceChildren();
-        this.renderDifficulty();
         if (mode === "random") {
             this.setStatus("Случайная игра", "Введите имя и нажмите «Начать игру онлайн».");
         }
@@ -200,7 +213,7 @@ export class OnlinePanel {
     }
     makeClient() { return this.mock ? new LoopbackClient(35) : new RealtimeClient(); }
     makeSession(client) {
-        return new OnlineSession(client, this.savedName || "Игрок", {
+        const session = new OnlineSession(client, this.savedName || "Игрок", {
             onPhase: (phase, detail) => { if (phase === "connecting")
                 this.loader.dataset.mode = "connect"; if (detail)
                 this.setStatus(detail, ""); this.refreshButtons(); },
@@ -212,6 +225,10 @@ export class OnlinePanel {
             } },
             onMatch: (info) => this.onMatchFound(info),
         }, this.ownerActive);
+        // Сложность уезжает вместе с матчем, если мы окажемся хостом.
+        session.setDifficulty(this.difficulty);
+        session.setAct(this.act);
+        return session;
     }
     async ensureRandomSession() {
         if (this.mode !== "random")
@@ -219,7 +236,6 @@ export class OnlinePanel {
         if (!this.session) {
             this.client = this.makeClient();
             this.session = this.makeSession(this.client);
-            this.session.setDifficulty(this.difficulty);
         }
         if (this.session.phase !== "idle") {
             this.refreshButtons();
@@ -231,7 +247,7 @@ export class OnlinePanel {
             return;
         }
         this.loader.dataset.mode = "idle";
-        this.setStatus("Сеть на связи", "Введите имя и начните случайный поиск.");
+        this.setStatus("Сеть на связ��", "Введите имя и начните случайный поиск.");
         this.refreshButtons();
     }
     async createCodeRoom() { if (this.validName())
@@ -254,10 +270,8 @@ export class OnlinePanel {
         this.codeHost = asHost;
         this.client = this.makeClient();
         this.session = this.makeSession(this.client);
-        this.session.setDifficulty(this.difficulty);
         this.loader.dataset.mode = "connect";
         this.showCodeCard(code);
-        this.renderDifficulty();
         this.setStatus(asHost ? "Создаём комнату…" : "Входим в комнату…", `Код ${code}`);
         if (!(await this.session.enterCodeRoom(code, asHost))) {
             this.showConnectionError();
@@ -268,7 +282,8 @@ export class OnlinePanel {
         setHidden(this.searchBox, false);
         setHidden(this.cancelButton, false);
         setHidden(this.roomStartButton, !asHost);
-        this.setStatus(asHost ? `Комната ${code} создана` : `Вы в комнате ${code}`, asHost ? "Отправьте код друзьям. Когда они войдут, запустите игру." : "Ждём, когда создатель комнаты запустит игру.");
+        this.setStatus(asHost ? `Комната ${code} создана` : `Вы в комнате ${code}`, asHost ? "Отправьте код друзьям. Выберите сложность и запустите игру." : "Ждём, когда создатель комнаты запустит игру.");
+        this.renderDifficulty();
         this.refreshButtons();
     }
     startSearch() {
@@ -357,10 +372,9 @@ export class OnlinePanel {
         this.loader.dataset.mode = "found";
         const lag = Math.min(400, Math.round((this.session?.ping ?? 0) / 2));
         this.startAt = performance.now() + Math.max(900, info.startIn - lag);
-        // Сложность у всех одинаковая — её прислал создатель матча.
         this.difficulty = difficultyOf(info.difficulty);
         this.renderDifficulty();
-        this.setStatus("Матч найден!", `Игроков: ${info.players.length} · сложность: ${presetOf(info.difficulty).short}. Заходим в школу…`);
+        this.setStatus("Матч найден!", `Игроков: ${info.players.length} · сложность: ${DIFFICULTY_PRESETS[this.difficulty].short}. Заходим в школу…`);
         this.renderMatchRoster(info);
         setHidden(this.soloButton, true);
         setHidden(this.roomStartButton, true);

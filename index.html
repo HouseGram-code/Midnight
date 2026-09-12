@@ -36,6 +36,7 @@
 		<link rel="stylesheet" href="./styles/hud.css" />
 		<link rel="stylesheet" href="./styles/touch.css" />
 		<link rel="stylesheet" href="./styles/acts.css" />
+		<link rel="stylesheet" href="./styles/act2.css" />
 	</head>
 	<body>
 		<canvas id="scene"></canvas>
@@ -49,6 +50,11 @@
 			<div class="hud-top">
 				<div id="hearts" class="hearts" aria-label="Жизни"></div>
 				<div id="objective" class="objective"></div>
+			</div>
+
+			<div id="act2-timer" class="act2-timer" hidden>
+				<b id="act2-timer-value">5:00</b>
+				<span id="act2-timer-label">до взрыва</span>
 			</div>
 
 			<div id="item-slots" class="item-slots" aria-label="Найденные предметы"></div>
@@ -71,6 +77,28 @@
 			<div id="fade" class="fade"></div>
 			<div id="subtitle" class="subtitle"></div>
 			<div id="skip-hint" class="skip-hint" hidden>Esc — пропустить сцену</div>
+		</div>
+
+		<!-- Терминал системы детонации: капча и анимация взлома -->
+		<div id="captcha" class="captcha" hidden>
+			<div class="captcha__panel">
+				<div class="captcha__head">
+					<b>Терминал системы детонации</b>
+					<span id="captcha-step" class="captcha__step">Шаг 1 из 3</span>
+				</div>
+				<p id="captcha-hint" class="captcha__hint"></p>
+				<p id="captcha-question" class="captcha__question"></p>
+				<div id="captcha-options" class="captcha__options"></div>
+				<p id="captcha-status" class="captcha__status">Пройдите проверку, чтобы получить доступ к каналу детонации.</p>
+				<div id="captcha-progress" class="captcha__progress" hidden>
+					<div class="captcha__track"><div id="captcha-bar" class="captcha__bar"></div></div>
+					<span id="captcha-progress-label" class="captcha__plabel">Взлом: 0%</span>
+				</div>
+				<div class="captcha__foot">
+					<button id="captcha-hack" class="btn btn--primary" type="button" disabled>Взломать</button>
+					<button id="captcha-close" class="btn" type="button">Отойти</button>
+				</div>
+			</div>
 		</div>
 
 		<!-- Онлайн: ники игроков, пинг и чат -->
@@ -221,19 +249,19 @@
 						<input class="setting__range" id="set-brightness" type="range" min="60" max="160" step="5" value="100" />
 						<span class="setting__value" id="set-brightness-value">100%</span>
 					</div>
+					<div class="setting setting--switch">
+						<label class="setting__label" for="set-invert">Инвертировать вертикаль</label>
+						<input class="setting__check" id="set-invert" type="checkbox" />
+					</div>
 					<div class="setting setting--stack">
 						<label class="setting__label" for="set-difficulty">Сложность</label>
 						<select class="setting__select" id="set-difficulty">
 							<option value="ghost">Призрак — её нет в школе</option>
-							<option value="easy">Легкая</option>
-							<option value="normal">Нормальный</option>
+							<option value="easy">Легко</option>
+							<option value="normal" selected>Нормальный</option>
 							<option value="hard">Сложный</option>
 						</select>
-						<p class="setting__note" id="set-difficulty-note"></p>
-					</div>
-					<div class="setting setting--switch">
-						<label class="setting__label" for="set-invert">Инвертировать вертикаль</label>
-						<input class="setting__check" id="set-invert" type="checkbox" />
+						<p class="setting__note" id="set-difficulty-note">Как задумано: пять жизней.</p>
 					</div>
 					<div class="setting">
 						<label class="setting__label" for="set-quality">Качество графики</label>
@@ -308,6 +336,17 @@
 						<button class="act-chip act-chip--locked" id="online-act-2" type="button" aria-disabled="true">🔒 II · Вернуться. Взрыв</button>
 					</div>
 
+					<div class="online__block" id="online-difficulty">
+						<span class="online__block-label">Сложность матча</span>
+						<div class="diff-chips" role="group" aria-label="Сложность матча">
+							<button class="diff-chip" type="button" data-diff="ghost" aria-selected="false">👻 Призрак</button>
+							<button class="diff-chip" type="button" data-diff="easy" aria-selected="false">Легко</button>
+							<button class="diff-chip diff-chip--active" type="button" data-diff="normal" aria-selected="true">Нормальный</button>
+							<button class="diff-chip" type="button" data-diff="hard" aria-selected="false">Сложный</button>
+						</div>
+						<p class="online__block-note" id="online-diff-note">Как задумано: пять жизней.</p>
+					</div>
+
 					<div class="online__modes" role="tablist" aria-label="Способ подключения">
 						<button class="online__mode online__mode--active" id="online-mode-random" type="button" role="tab" aria-selected="true">Случайная игра</button>
 						<button class="online__mode" id="online-mode-code" type="button" role="tab" aria-selected="false">Комната по коду</button>
@@ -337,17 +376,6 @@
 							<p class="online__status" id="online-status">Подключаемся к серверу…</p>
 							<p class="online__hint" id="online-hint">Первый вход занимает пару секунд.</p>
 						</div>
-					</div>
-
-					<div class="online__block" id="online-difficulty">
-						<span class="online__block-label">Сложность матча</span>
-						<div class="diff-chips">
-							<button class="diff-chip" data-diff="ghost" type="button" aria-pressed="false">Призрак</button>
-							<button class="diff-chip" data-diff="easy" type="button" aria-pressed="false">Легкая</button>
-							<button class="diff-chip" data-diff="normal" type="button" aria-pressed="true">Нормальный</button>
-							<button class="diff-chip" data-diff="hard" type="button" aria-pressed="false">Сложный</button>
-						</div>
-						<p class="online__block-note" id="online-diff-note"></p>
 					</div>
 
 					<div class="online__search" id="online-search" hidden>

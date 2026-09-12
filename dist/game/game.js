@@ -16,9 +16,11 @@ const EMPTY_FLASHES = [];
 import { BUILDING } from "../world/layout.js";
 import { Teacher } from "../entities/teacher.js";
 import { NavGraph } from "./nav.js";
-import { DIFFICULTY_PRESETS, difficultyOf, presetOf } from "./difficulty.js";
-import { EXIT_DOOR, FLASHLIGHT_ITEM, HIDE_SPOTS, QUEST_ITEMS, buildBarricade, buildClassDoor, buildExitDoors, buildHeldItem, buildItemPickup, } from "./items.js";
+import { DIFFICULTY_PRESETS, difficultyOf } from "./difficulty.js";
+import { EXIT_DOOR, FLASHLIGHT_ITEM, HIDE_SPOTS, QUEST_ITEMS, buildBarricade, buildClassDoor, buildExitDoors, buildHeldItem, buildItemModel, buildItemPickup, } from "./items.js";
 import { Timeline, easeInOut, easeOut, mix, mixAngle } from "./timeline.js";
+import { ACT2_EXIT, ACT2_HACK_SECONDS, ACT2_ITEMS, ACT2_PANEL, ACT2_TIMER, ACT2_WARNINGS, formatTimer, objectiveFor, stageCode, stageFromCode, } from "./act2.js";
+import { CaptchaPanel } from "../ui/captcha.js";
 import { OnlineGame } from "../net/online.js";
 import { projectToScreen } from "../net/remote.js";
 /** Выход разбирается в пять приёмов — на каждый свой предмет. */
@@ -85,6 +87,11 @@ export class Game {
     };
     state = "menu";
     lives = CONFIG.horror.lives;
+    /** Сложность текущего забега. */
+    difficulty = "normal";
+    preset = DIFFICULTY_PRESETS.normal;
+    /** Сколько жизней всего — зависит от сложности. */
+    maxLives = CONFIG.horror.lives;
     paused = false;
     teacher;
     renderer;
@@ -137,10 +144,6 @@ export class Game {
     hideYaw = 0;
     /** Она видела, в какой шкафчик мы залезли — такой шкафчик не спасёт. */
     hideSpotted = false;
-    /** Выбранная сложность. */
-    difficulty = "normal";
-    preset = DIFFICULTY_PRESETS.normal;
-    maxLives = CONFIG.horror.lives;
     timeline = null;
     teacherWriting = false;
     writePhase = 0;
@@ -157,7 +160,7 @@ export class Game {
     classDoorVisible = false;
     classDoorAngle = 0;
     classDoorTarget = 0;
-    /** До кри����а учительница — обычный человек без красных глаз и дубины. */
+    /** До крика учительница — обычный человек без красных глаз и дубины. */
     teacherHuman = false;
     /** Онлайн-бета: если связка жива, мир общий на всю команду. */
     online = null;
@@ -202,6 +205,572 @@ export class Game {
     handleBlur = () => {
         this.holdKey = false;
     };
+    /**
+     * Сложность: жизни и поведение учительницы.
+     * В одиночной игре берётся из настроек, в онлайне — из матча.
+     */
+    setDifficulty(value) {
+        const id = difficultyOf(value);
+        this.difficulty = id;
+        this.preset = DIFFICULTY_PRESETS[id];
+        this.teacher.setTuning(this.preset);
+        // Призрачный режим: её вообще нет в школе.
+        if (this.preset.absent && this.state !== "menu") {
+            this.teacher.sleep();
+            this.teacher.visible = false;
+            this.teacherTarget = null;
+        }
+        // Жизни меняем только вне забега — в игре цифра не должна прыгать.
+        if (this.state === "menu") {
+            this.maxLives = this.preset.lives;
+            this.lives = this.preset.lives;
+        }
+    }
+    /** Название текущей сложности для интерфейса. */
+    get difficultyLabel() {
+        return this.preset.short;
+    }
+    /** Учительницы нет в школе. */
+    get teacherAbsent() {
+        return this.preset.absent;
+    }
+    // ------------------------------------------------------------------- акт II
+    /** Какой акт идёт: 1 — «Ночь в школе», 2 — «Взрыв». */
+    act = 1;
+    act2Stage = "weapon";
+    act2Timer = ACT2_TIMER;
+    act2Running = false;
+    act2Defused = false;
+    act2Hack = 0;
+    act2Hacking = false;
+    act2LaptopPlaced = false;
+    act2Warned = new Set();
+    captchaPanel = null;
+    resetAct2() {
+        this.act2Stage = "weapon";
+        this.act2Timer = ACT2_TIMER;
+        this.act2Running = false;
+        this.act2Defused = false;
+        this.act2Hack = 0;
+        this.act2Hacking = false;
+        this.act2LaptopPlaced = false;
+        this.act2Warned.clear();
+        this.captchaPanel?.reset();
+        this.hud.setTimer(null);
+    }
+    /** Открыт терминал: управление уходит в капчу, игрок стоит на месте. */
+    get inTerminal() {
+        return this.captchaPanel?.isOpen === true;
+    }
+    captcha() {
+        if (!this.captchaPanel) {
+            this.captchaPanel = new CaptchaPanel({
+                onHack: () => this.startHack(),
+                onClose: () => this.closeTerminal(),
+                onSound: (name) => {
+                    if (name === "ok")
+                        this.audio.play("unlock", { volume: 0.45 });
+                    else if (name === "fail")
+                        this.audio.play("locked", { volume: 0.6 });
+                    else
+                        this.audio.play("click", { volume: 0.45 });
+                },
+            });
+        }
+        return this.captchaPanel;
+    }
+    openTerminal() {
+        const panel = this.captcha();
+        if (this.act2Hacking)
+            panel.showHacking();
+        else
+            panel.start();
+        this.hud.setPrompt(null);
+        this.hud.setHold(null);
+        this.audio.play("click", { volume: 0.5 });
+        document.exitPointerLock?.();
+    }
+    closeTerminal() {
+        this.captchaPanel?.show(false);
+        const canvas = document.querySelector("canvas");
+        canvas?.requestPointerLock?.();
+    }
+    /** Предметы акта II появляются строго по ходу миссии. */
+    act2ItemAvailable(def) {
+        if (def.id === "weapon")
+            return this.act2Stage === "weapon";
+        if (def.id === "laptop")
+            return this.act2Stage === "laptop" || this.act2Stage === "panel";
+        if (def.id === "key")
+            return this.act2Stage === "key" || this.act2Stage === "escape";
+        return false;
+    }
+    startHack() {
+        if (this.act2Hacking || this.act2Defused)
+            return;
+        this.act2Hacking = true;
+        this.act2Hack = 0;
+        this.act2Stage = "hack";
+        this.online?.sendStage(stageCode("hack"));
+        this.audio.play("place_item", { volume: 0.7 });
+        this.audio.startLoop("pickup_loop", { volume: 0.22, fade: 0.3 });
+        this.hud.toast("Взлом пошёл. Минута — и детонаторы замолчат", 5);
+        this.netSay("Взлом системы детонации начался");
+    }
+    defuseAct2() {
+        if (this.act2Defused)
+            return;
+        this.act2Hacking = false;
+        this.act2Defused = true;
+        this.act2Running = false;
+        this.act2Stage = "key";
+        this.audio.stopLoop("pickup_loop", 0.2);
+        this.audio.stopLoop("heartbeat", 1.2);
+        this.audio.play("unlock", { volume: 1 });
+        this.audio.play("win", { volume: 0.5, delay: 0.3 });
+        this.hud.setTimer(null);
+        this.hud.toast("Молодцы, успели! Система взломана. Осталось найти ключ", 6.5);
+        this.captchaPanel?.finish();
+        this.online?.sendStage(stageCode("key"));
+        this.netSay("Взрывчатка обезврежена — ищем ключ!");
+    }
+    explodeAct2() {
+        this.act2Running = false;
+        this.act2Timer = 0;
+        this.act2Hacking = false;
+        this.hud.setTimer(null);
+        this.captchaPanel?.reset();
+        this.audio.stopAllLoops(0.2);
+        this.audio.play("stinger", { volume: 1 });
+        this.audio.play("fall", { volume: 0.9, delay: 0.2 });
+        this.shake = 1;
+        this.state = "dead";
+        this.timeline = null;
+        this.fade = 1;
+        this.hud.setVisible(false);
+        this.hud.setPrompt(null);
+        this.hud.setHold(null);
+        this.say(null);
+        this.online?.sendDown();
+        this.callbacks.onDead("Школа взлетела на воздух — вы не успели");
+    }
+    /** Таймер до взрыва, предупреждения и анимация взлома. */
+    updateAct2(dt) {
+        if (this.state !== "play" && this.state !== "hiding")
+            return;
+        if (this.act2Hacking) {
+            this.act2Hack += dt;
+            this.captchaPanel?.setProgress(this.act2Hack / ACT2_HACK_SECONDS);
+            if (this.act2Hack >= ACT2_HACK_SECONDS)
+                this.defuseAct2();
+        }
+        if (!this.act2Running)
+            return;
+        this.act2Timer -= dt;
+        for (const warning of ACT2_WARNINGS) {
+            if (this.act2Timer <= warning.at && !this.act2Warned.has(warning.at)) {
+                this.act2Warned.add(warning.at);
+                this.hud.toast(warning.text, 4.2);
+                this.audio.play(warning.at <= 30 ? "stinger" : "whisper", { volume: 0.5 });
+            }
+        }
+        if (this.act2Timer <= 0) {
+            this.explodeAct2();
+            return;
+        }
+        this.hud.setTimer(formatTimer(this.act2Timer), "до взрыва", this.act2Timer <= 60 ? "warn" : "normal");
+    }
+    /** Действия акта II: предметы, щит, терминал и служебный выход. */
+    completeAct2(target) {
+        if (target.kind === "item" && target.item) {
+            const item = target.item;
+            this.audio.play("pickup_done", { volume: 0.9 });
+            this.heldItem = item.id;
+            this.heldTimer = 5;
+            this.hud.setHandLabel(`${item.label} — ${item.use}`);
+            const slot = this.addToHotbar(item.id);
+            this.collected.add(item.id);
+            this.online?.sendItem(item.id);
+            this.refreshHotbarHud();
+            this.hud.toast(`${item.label} у вас · клавиша ${slot + 1} — взять в руку`, 3.6);
+            this.netSay(`Вы нашли: ${item.label}`);
+            if (item.id === "weapon") {
+                this.startLockdown();
+                return;
+            }
+            if (item.id === "laptop") {
+                this.act2Stage = "panel";
+                this.online?.sendStage(stageCode("panel"));
+                this.hud.toast(`Система взрывчатки — щит в серверной: ${ACT2_PANEL.name}`, 6.5);
+                this.audio.play("whisper", { volume: 0.4, delay: 0.6 });
+                return;
+            }
+            if (item.id === "key") {
+                this.act2Stage = "escape";
+                this.online?.sendStage(stageCode("escape"));
+                this.hud.toast(`Ключ есть! Служебный выход: ${ACT2_EXIT.name}`, 5.5);
+            }
+            return;
+        }
+        if (target.kind !== "exit")
+            return;
+        if (this.act2Stage === "panel") {
+            this.act2LaptopPlaced = true;
+            this.act2Stage = "captcha";
+            this.online?.sendStage(stageCode("captcha"));
+            this.audio.play("place_item", { volume: 0.9 });
+            this.hud.toast("Ноутбук подключён к щиту детонации", 3.4);
+            this.openTerminal();
+            return;
+        }
+        if (this.act2Stage === "captcha" || this.act2Stage === "hack") {
+            this.openTerminal();
+            return;
+        }
+        if (this.act2Stage === "escape")
+            this.startAct2Outro();
+    }
+    /** Онлайн: шаги миссии акта II приходят по сети. */
+    remoteAct2Stage(code, who) {
+        const stage = stageFromCode(code);
+        if (stageCode(stage) <= stageCode(this.act2Stage))
+            return;
+        this.act2Stage = stage;
+        if (stage === "laptop") {
+            if (!this.act2Running && !this.act2Defused) {
+                this.act2Running = true;
+                this.act2Timer = ACT2_TIMER;
+                this.act2Warned.clear();
+            }
+            this.hud.toast(`${who} нашёл оружие. Она заперла школу — 5:00 до взрыва!`, 6);
+            return;
+        }
+        if (stage === "hack") {
+            this.act2Hacking = true;
+            this.act2Hack = 0;
+            this.act2LaptopPlaced = true;
+            this.hud.toast(`${who} запустил взлом системы — ждём минуту`, 5);
+            return;
+        }
+        if (stage === "key") {
+            this.act2Hacking = false;
+            this.act2Defused = true;
+            this.act2Running = false;
+            this.hud.setTimer(null);
+            this.captchaPanel?.finish();
+            this.hud.toast("Взрывчатка обезврежена! Осталось найти ключ", 5);
+            return;
+        }
+        this.hud.toast(`${who}: ${objectiveFor(stage, this.collected.has("laptop"))}`, 4);
+    }
+    /** Кат-сцена прихода в ночную школу. */
+    startIntroAct2() {
+        this.state = "intro";
+        this.hud.setLetterbox(true);
+        this.hud.setSkipHint("Enter — дальше · Esc — пропустить заставку");
+        this.night = 1;
+        this.nightTarget = 1;
+        this.fade = 0;
+        this.teacher.visible = false;
+        this.teacherWriting = false;
+        this.teacherHuman = false;
+        this.exitVisible = true;
+        this.itemsVisible = false;
+        this.barricadeVisible = false;
+        this.classDoorVisible = false;
+        this.exitAngle = 0;
+        this.renderer.setDynamicVisible("items", false);
+        this.renderer.setDynamicVisible("held", false);
+        this.renderer.setDynamicVisible("classdoor", false);
+        const steps = [
+            {
+                id: "night",
+                duration: 4.6,
+                onEnter: () => {
+                    this.audio.startLoop("ambience", { volume: CONFIG.audio.ambience * 0.8, fade: 1.6 });
+                    this.say("Акт II. Школа № 3, 01:12. Мы вернулись за тем, что она спрятала.");
+                },
+                onUpdate: (progress) => {
+                    const t = easeInOut(progress);
+                    this.sceneCamera(38, 1.72, mix(56, 47.5, t), 0, mix(0.06, -0.02, t), 74);
+                },
+            },
+            {
+                id: "doors",
+                duration: 3.2,
+                onEnter: () => {
+                    this.audio.play("door_full", { volume: 0.95 });
+                    this.say("Двери снова открыты. Как приглашение.");
+                },
+                onUpdate: (progress) => {
+                    this.exitAngle = easeOut(progress) * 1.35;
+                    this.sceneCamera(38, 1.7, mix(47.5, 44.2, easeInOut(progress)), 0, -0.02, 72);
+                },
+            },
+            {
+                id: "inside",
+                duration: 3.4,
+                onEnter: () => {
+                    this.say("Внутри пусто. Учительницы нет — но школа дышит.");
+                    this.audio.play("whisper", { volume: 0.45, delay: 0.8 });
+                },
+                onUpdate: (progress) => {
+                    const t = easeInOut(progress);
+                    this.sceneCamera(38, 1.7, mix(44.2, 38.5, t), mix(0, 0.2, t), -0.02, 72);
+                    this.fade = fadeAfter(progress, 0.62);
+                },
+                onExit: () => {
+                    this.fade = 1;
+                    this.exitAngle = 0;
+                    this.exitVisible = false;
+                },
+            },
+            {
+                id: "stairs",
+                duration: 3.8,
+                onEnter: () => {
+                    this.say("Лестница на второй этаж открыта. Раньше её всегда запирали.");
+                    this.audio.play("door_open", { volume: 0.6 });
+                },
+                onUpdate: (progress) => {
+                    const t = easeInOut(progress);
+                    this.fade = 1 - easeOut(Math.min(1, progress * 1.8));
+                    this.sceneCamera(8.2, mix(1.6, 1.8, t), mix(7.4, 4.6, t), 0, mix(0.18, 0.05, t), 72);
+                },
+            },
+            {
+                id: "task",
+                duration: 3,
+                onEnter: () => {
+                    this.say("Оружие где-то на втором этаже. Найти будет непросто.");
+                },
+                onUpdate: (progress) => {
+                    this.sceneCamera(8.2, 1.8, mix(4.6, 3.6, easeInOut(progress)), 0, 0.05, 72);
+                },
+            },
+        ];
+        this.timeline = new Timeline(steps, () => this.beginPlayAct2());
+    }
+    beginPlayAct2() {
+        this.state = "play";
+        this.timeline = null;
+        this.fade = 0;
+        this.shake = 0;
+        this.night = 1;
+        this.nightTarget = 1;
+        this.lightsOut = true;
+        this.flashlightOwned = true;
+        this.flashlightOn = true;
+        this.lightArmed = true;
+        this.addToHotbar("flashlight");
+        this.slot = 0;
+        this.placePlayer(8.2, 3.4, 0);
+        this.hud.setLetterbox(false);
+        this.hud.setSkipHint(null);
+        this.say(null);
+        this.hud.setVisible(true);
+        this.hud.setLives(this.lives, this.maxLives);
+        this.refreshHotbarHud();
+        this.hud.toast("Лестница рядом. Оружие — на втором этаже. F — фонарь", 5.5);
+        this.itemsVisible = true;
+        this.exitVisible = true;
+        this.barricadeVisible = false;
+        this.classDoorVisible = false;
+        this.renderer.setDynamicVisible("items", true);
+        this.audio.startLoop("ambience", { volume: CONFIG.audio.ambience, fade: 1 });
+        this.playTime = 0;
+        this.grace = 2;
+        this.callbacks.onPlayStart();
+    }
+    /** Кат-сцена: она заперла школу и оставила динамит. */
+    startLockdown() {
+        this.state = "intro";
+        this.holdProgress = 0;
+        this.holdActive = false;
+        this.hud.setPrompt(null);
+        this.hud.setHold(null);
+        this.hud.setVisible(false);
+        this.hud.setLetterbox(true);
+        this.hud.setSkipHint("Enter — дальше · Esc — пропустить");
+        this.audio.stopLoop("steps", 0.1);
+        this.stepsOn = false;
+        const atX = this.player.x;
+        const atZ = this.player.z;
+        const eye = this.player.eyeY;
+        const yaw = this.player.yaw;
+        const steps = [
+            {
+                id: "black",
+                duration: 2.2,
+                onEnter: () => {
+                    this.fade = 1;
+                    this.audio.play("stinger", { volume: 0.85 });
+                    this.say("Обрез у нас. И в этот момент всё погасло…");
+                },
+                onUpdate: () => {
+                    this.fade = 1;
+                },
+            },
+            {
+                id: "locked",
+                duration: 3.8,
+                onEnter: () => {
+                    this.audio.play("door_full", { volume: 0.9 });
+                    this.audio.play("locked", { volume: 0.95, delay: 0.9 });
+                    this.say("Главная дверь заперта. Снаружи щёлкнул замок.");
+                },
+                onUpdate: (progress) => {
+                    this.fade = 1 - easeOut(Math.min(1, progress * 2));
+                    this.sceneCamera(atX, eye, atZ, mixAngle(yaw, yaw + 0.9, easeInOut(progress)), -0.04, 70);
+                },
+            },
+            {
+                id: "gone",
+                duration: 3.4,
+                onEnter: () => {
+                    this.say("Шаги за стеной. Она ушла через другой выход.");
+                    this.audio.play("teacher_step", { volume: 0.7 });
+                    this.audio.play("teacher_step", { volume: 0.6, delay: 0.5 });
+                    this.audio.play("door_open", { volume: 0.55, delay: 1.4 });
+                },
+                onUpdate: (progress) => {
+                    this.sceneCamera(atX, eye, atZ, mixAngle(yaw + 0.9, yaw - 0.8, easeInOut(progress)), -0.02, 70);
+                },
+            },
+            {
+                id: "dynamite",
+                duration: 4,
+                onEnter: () => {
+                    this.say("В коридоре — динамит и красные цифры: 5:00.");
+                    this.audio.play("click", { volume: 0.7 });
+                    this.audio.play("heartbeat", { volume: 0.6, delay: 0.4 });
+                    this.shake = 0.5;
+                },
+                onUpdate: (progress) => {
+                    this.shake = Math.max(this.shake, 0.3 * (1 - progress));
+                    this.sceneCamera(atX, mix(eye, 1.35, easeInOut(progress)), atZ, yaw - 0.8, -0.3, 64);
+                },
+            },
+            {
+                id: "plan",
+                duration: 3.4,
+                onEnter: () => {
+                    this.say("Пять минут. Систему можно взломать — нужен ноутбук.");
+                },
+                onUpdate: (progress) => {
+                    this.sceneCamera(atX, mix(1.35, eye, easeInOut(progress)), atZ, yaw, -0.05, 70);
+                },
+            },
+        ];
+        this.timeline = new Timeline(steps, () => this.beginAct2Race());
+    }
+    beginAct2Race() {
+        this.state = "play";
+        this.timeline = null;
+        this.fade = 0;
+        this.shake = 0;
+        this.hud.setLetterbox(false);
+        this.hud.setSkipHint(null);
+        this.say(null);
+        this.hud.setVisible(true);
+        if (stageCode(this.act2Stage) < stageCode("laptop"))
+            this.act2Stage = "laptop";
+        this.act2Running = true;
+        this.act2Timer = ACT2_TIMER;
+        this.act2Warned.clear();
+        this.grace = 1.5;
+        this.online?.sendStage(stageCode("laptop"));
+        this.hud.toast("5:00 до взрыва. Найдите ноутбук!", 5.5);
+        this.audio.startLoop("heartbeat", { volume: 0.3, fade: 1 });
+        this.netSay("Она заперла школу и оставила динамит — 5 минут!");
+    }
+    /** Финал акта II: ключ, служебный выход и бег от школы. */
+    startAct2Outro() {
+        this.state = "outro";
+        this.act2Stage = "done";
+        this.holdProgress = 0;
+        this.holdActive = false;
+        this.hud.setPrompt(null);
+        this.hud.setHold(null);
+        this.hud.setVisible(false);
+        this.hud.setTimer(null);
+        this.hud.setLetterbox(true);
+        this.hud.setSkipHint("Enter — дальше · Esc — пропустить");
+        this.hud.setSubtitle(null);
+        this.audio.stopLoop("steps", 0.1);
+        this.audio.stopLoop("heartbeat", 0.8);
+        this.audio.stopLoop("pickup_loop", 0.05);
+        const startX = this.player.x;
+        const startZ = this.player.z;
+        const steps = [
+            {
+                id: "unlock",
+                duration: 2.8,
+                onEnter: () => {
+                    this.audio.play("unlock", { volume: 1 });
+                    this.say("Ключ завхоза подошёл к служебной двери.");
+                },
+                onUpdate: (progress) => {
+                    const t = easeInOut(progress);
+                    this.sceneCamera(mix(startX, ACT2_EXIT.x, t), mix(CONFIG.player.eyeHeight, 1.5, t), mix(startZ, ACT2_EXIT.standZ, t), mixAngle(this.player.yaw, Math.PI, t), mix(this.player.pitch, -0.16, t), mix(74, 60, t));
+                },
+            },
+            {
+                id: "out",
+                duration: 3.2,
+                onEnter: () => {
+                    this.audio.play("door_full", { volume: 1 });
+                    this.audio.startLoop("steps", { volume: 0.5, rate: 1.4, fade: 0.1 });
+                    this.say("Холодный воздух. Мы снаружи.");
+                },
+                onUpdate: (progress) => {
+                    const t = easeInOut(progress);
+                    this.nightTarget = 1 - t * 0.45;
+                    this.sceneCamera(ACT2_EXIT.x, mix(1.5, CONFIG.player.eyeHeight, t) + Math.sin(progress * 26) * 0.03, mix(ACT2_EXIT.standZ, -4.5, t), Math.PI, 0.02, mix(60, 84, t));
+                },
+                onExit: () => {
+                    this.audio.stopLoop("steps", 0.25);
+                },
+            },
+            {
+                id: "look",
+                duration: 3.8,
+                onEnter: () => {
+                    this.audio.play("stinger", { volume: 0.7 });
+                    this.say("Школа стоит целая. Динамит молчит. А она — где-то там.");
+                },
+                onUpdate: (progress) => {
+                    const t = easeInOut(Math.min(1, progress / 0.6));
+                    this.sceneCamera(ACT2_EXIT.x, CONFIG.player.eyeHeight, -4.5, mix(Math.PI, 0, t), 0.04, mix(84, 70, t));
+                    this.fade = fadeAfter(progress, 0.78);
+                },
+            },
+            {
+                id: "end",
+                duration: 3,
+                onEnter: () => {
+                    this.audio.play("win", { volume: 0.5 });
+                    this.audio.play("win_fanfare", { volume: 0.95, delay: 0.12 });
+                    this.say("Акт II пройден. Продолжение — в акте III.");
+                    this.fade = 1;
+                },
+                onUpdate: () => {
+                    this.fade = 1;
+                },
+            },
+        ];
+        this.timeline = new Timeline(steps, () => {
+            this.state = "won";
+            this.online?.sendEscape();
+            this.timeline = null;
+            this.fade = 1;
+            this.say(null);
+            this.audio.stopAllLoops(0.5);
+            this.hud.setLetterbox(false);
+            this.hud.setSkipHint(null);
+            this.callbacks.onWon();
+        });
+    }
     /** Яркость из настроек: ночь должна быть видна на любом мониторе. */
     setBrightness(value) {
         this.brightness = Math.max(0.6, Math.min(1.6, value));
@@ -259,26 +828,12 @@ export class Game {
         this.renderer.setDynamicVisible("classdoor", false);
         this.renderer.setDynamicVisible("players", false);
     }
-    /** Сложность: меняет жизни и поведение учительницы. */
-    setDifficulty(value) {
-        this.difficulty = difficultyOf(value);
-        this.preset = presetOf(this.difficulty);
-        this.maxLives = this.preset.lives;
-        this.teacher.setTuning(this.preset);
-        if (this.preset.absent) {
-            this.teacher.sleep();
-            this.teacher.visible = false;
-            this.teacher.alert = 0;
-            this.teacher.seesPlayer = false;
-        }
-    }
-    /** Название текущей сложности. */
-    get difficultyLabel() { return this.preset.short; }
-    /** Нет ли учительницы в школе вообще. */
-    get teacherAbsent() { return this.preset.absent; }
-    startNewGame() {
+    startNewGame(act = 1) {
+        this.act = act;
+        this.resetAct2();
         this.collected.clear();
-        this.lives = this.maxLives;
+        this.maxLives = this.preset.lives;
+        this.lives = this.preset.lives;
         this.flashlightOwned = false;
         this.flashlightOn = false;
         this.exitStage = 0;
@@ -315,7 +870,10 @@ export class Game {
         this.refreshItemsHud();
         this.refreshHotbarHud();
         this.audio.stopAllLoops(0.2);
-        this.startIntro();
+        if (this.act === 2)
+            this.startIntroAct2();
+        else
+            this.startIntro();
     }
     // ------------------------------------------------------------- онлайн-бета
     /** Запуск общего забега: все в одной школе, учительница одна на всех. */
@@ -339,9 +897,9 @@ export class Game {
         });
         this.online = online;
         this.onlineUi = ui;
-        // Сложность приходит от создателя матча — одинаковая у всех.
+        // Сложность в онлайне одна на всех — её задаёт создатель комнаты.
         this.setDifficulty(match.difficulty);
-        this.startNewGame();
+        this.startNewGame(match.act === 2 ? 2 : 1);
         return online;
     }
     /** Выход из онлайна: остаёмся в обычной одиночной игре. */
@@ -371,12 +929,17 @@ export class Game {
     }
     /** Кто-то из команды поднял предмет — он общий. */
     remoteItem(kind, who) {
-        const def = QUEST_ITEMS.find((item) => item.id === kind);
+        const def = (this.act === 2 ? ACT2_ITEMS : QUEST_ITEMS).find((item) => item.id === kind);
         if (!def)
             return;
         if (this.collected.has(def.id))
             return;
         this.collected.add(def.id);
+        if (this.act === 2) {
+            this.hud.toast(`${who} нашёл: ${def.label}`, 3.4);
+            this.netSay(`${who} нашёл: ${def.label}`);
+            return;
+        }
         this.refreshItemsHud();
         this.hud.toast(`${who}: ${def.label.toLowerCase()} — найдено ${this.collected.size} из 5`, 3.4);
         this.netSay(`${who} нашёл предмет: ${def.label} (${this.collected.size}/5)`);
@@ -386,6 +949,10 @@ export class Game {
     }
     /** Кто-то разобрал часть баррикады. */
     remoteStage(stage, who) {
+        if (this.act === 2) {
+            this.remoteAct2Stage(stage, who);
+            return;
+        }
         if (stage <= this.exitStage)
             return;
         this.exitStage = Math.min(stage, EXIT_STAGES.length);
@@ -662,7 +1229,7 @@ export class Game {
         this.renderer.setDynamicVisible("items", false);
         this.renderer.setDynamicVisible("held", false);
         this.renderer.setDynamicVisible("classdoor", false);
-        // Звук двери кабинета должен сыграть ровно один раз.
+        // Звук двери кабинета дол��ен сыграть ровно один раз.
         let doorSoundPlayed = false;
         const steps = [
             {
@@ -928,7 +1495,7 @@ export class Game {
         this.audio.startLoop("ambience", { volume: CONFIG.audio.ambience, fade: 1 });
         this.callbacks.onPlayStart();
     }
-    // ------------------------------------------------------------- финальная сцена
+    // ------------------------------------------------------------- ��инальная сцена
     startOutro() {
         this.state = "outro";
         this.holdProgress = 0;
@@ -1051,7 +1618,7 @@ export class Game {
                 duration: 2.8,
                 onEnter: () => {
                     this.audio.play("win", { volume: 0.5 });
-                    // Фа��фары победы — сразу после выхода из школы.
+                    // Фанфары победы — сразу после выхода и�� школы.
                     this.audio.play("win_fanfare", { volume: 0.95, delay: 0.12 });
                     this.say("Игра пройдена!");
                     this.fade = 1;
@@ -1144,7 +1711,7 @@ export class Game {
         this.audio.play("lose", { volume: 0.8, delay: 0.3 });
         this.hud.setPrompt(null);
         this.hud.setHold(null);
-        this.hud.setLives(0);
+        this.hud.setLives(0, this.maxLives);
         this.hud.setVignette(0);
         this.hud.toast("Вы проиграли. Теперь вы призрак и можете только смотреть", 6);
         this.say("Призрак: WASD — полёт, пробел — вверх, Ctrl — вниз. Из школы не выйти");
@@ -1191,7 +1758,7 @@ export class Game {
         this.player.velocityY = 0;
         this.player.velocityZ = 0;
         this.setCamera(this.player.x, this.ghostY, this.player.z, this.player.yaw, this.player.pitch, CONFIG.camera.fov + 4);
-        // Забег оконч��н, когда в школе никого живого не осталось.
+        // Забег окончен, когда в школе никого живого не осталось.
         if (this.ghostTimer < 2.5)
             return;
         const online = this.online;
@@ -1220,7 +1787,7 @@ export class Game {
         this.teacher.visible = net.visible;
         this.teacher.setAnimationSpeed(net.speed, dt);
     }
-    /** Экран поражения: сразу в одиночной игре или после ��олёта призраком. */
+    /** Экран поражен��я: сразу в одиночной игре или после полёта призраком. */
     finishDead(reason) {
         this.state = "dead";
         this.timeline = null;
@@ -1419,6 +1986,47 @@ export class Game {
                 best = make();
             }
         };
+        if (this.act === 2) {
+            for (const def of ACT2_ITEMS) {
+                if (this.collected.has(def.id))
+                    continue;
+                if (!this.act2ItemAvailable(def))
+                    continue;
+                consider(def.x, def.y, def.z, () => ({
+                    kind: "item",
+                    label: `забрать: ${def.label}`,
+                    hold: CONFIG.horror.holdSeconds,
+                    item: def,
+                    ready: true,
+                }));
+            }
+            const stage = this.act2Stage;
+            if (stage === "panel" || stage === "captcha" || stage === "hack") {
+                const hasLaptop = this.collected.has("laptop");
+                const label = stage === "panel"
+                    ? hasLaptop
+                        ? "поставить ноутбук на щит"
+                        : "нужен предмет: Ноутбук"
+                    : stage === "hack"
+                        ? "посмотреть на взлом"
+                        : "сесть за ноутбук";
+                consider(ACT2_PANEL.x, ACT2_PANEL.y, ACT2_PANEL.standZ, () => ({
+                    kind: "exit",
+                    label,
+                    hold: stage === "panel" ? 1.2 : 0.35,
+                    ready: stage !== "panel" || hasLaptop,
+                }));
+            }
+            if (stage === "escape") {
+                consider(ACT2_EXIT.x, ACT2_EXIT.y, ACT2_EXIT.standZ, () => ({
+                    kind: "exit",
+                    label: "открыть служебный выход",
+                    hold: 1,
+                    ready: true,
+                }));
+            }
+            return best;
+        }
         for (const item of QUEST_ITEMS) {
             if (this.collected.has(item.id))
                 continue;
@@ -1471,6 +2079,10 @@ export class Game {
         return best;
     }
     completeInteraction(target) {
+        if (this.act === 2) {
+            this.completeAct2(target);
+            return;
+        }
         if (target.kind === "item" && target.item) {
             const item = target.item;
             this.audio.play("pickup_done", { volume: 0.85 });
@@ -1537,7 +2149,7 @@ export class Game {
             // Если она в этот момент смотрела на нас и была рядом — она видела
             // шкафчик и придёт вытаскивать: нужно ускользнуть до её руки.
             const seenFrom = Math.hypot(this.teacher.x - this.player.x, this.teacher.z - this.player.z);
-            // Было 12 м: она «видела» почти всегда, и шкафчик не спасал.
+            // Было 12 м: она ��видела» почти всегда, и шкафчик не спасал.
             this.hideSpotted = this.teacher.visible && this.teacher.seesPlayer && seenFrom < 7;
             if (this.hideSpotted) {
                 this.hud.toast("Она видела, куда вы спрятались! Бегите!", 4);
@@ -1561,11 +2173,6 @@ export class Game {
         this.holdActive = false;
     }
     triggerLightsOut() {
-        // На сложности «призрак» учительница не просыпается вообще.
-        if (this.preset.absent) {
-            this.teacher.sleep();
-            this.teacher.visible = false;
-        }
         this.lightsOut = true;
         this.online?.sendLightsOut();
         this.nightTarget = 1;
@@ -1575,6 +2182,12 @@ export class Game {
         this.hud.toast(this.flashlightOwned
             ? "Свет погас. Фонарь — F"
             : "Свет погас! Фонарь остался в кабинете 101", 6);
+        // Режим «Призрак»: свет гаснет, но будить некого — она ушла из школы.
+        if (this.preset.absent) {
+            this.teacher.sleep();
+            this.teacher.visible = false;
+            return;
+        }
         const node = this.nav.roamTarget(this.player.x, this.player.z, 30);
         if (node)
             this.teacher.awaken(node.x, node.z, Math.PI);
@@ -1647,6 +2260,8 @@ export class Game {
             this.updateTeacher(dt);
         else if (this.state === "ghost")
             this.updateTeacherSpectate(dt);
+        if (this.act === 2)
+            this.updateAct2(dt);
         this.updateOnline(dt);
         this.applyShake();
         this.updateDynamicMeshes();
@@ -1659,16 +2274,20 @@ export class Game {
         this.setCamera(38 + Math.sin(t) * 1.6, 1.72 + Math.sin(t * 0.7) * 0.04, 34.8 + Math.cos(t * 0.55) * 1.1, Math.sin(t * 0.45) * 0.1, -0.015 + Math.sin(t * 0.8) * 0.012, 70);
         this.fade = 0;
     }
-    // ------------------------------------------------------------------- игра
+    // ------------------------------------------------------------------- игр��
     updatePlay(dt, steps, fixedStep, mouse, invertY) {
-        if (mouse.x !== 0 || mouse.y !== 0) {
-            this.player.applyLook(mouse.x, invertY ? -mouse.y : mouse.y);
+        // Пока открыт терминал взлома, игрок не ходит и не вертит камерой.
+        if (!this.inTerminal) {
+            if (mouse.x !== 0 || mouse.y !== 0) {
+                this.player.applyLook(mouse.x, invertY ? -mouse.y : mouse.y);
+            }
+            for (let i = 0; i < steps; i += 1)
+                this.player.update(fixedStep, this.input);
         }
-        for (let i = 0; i < steps; i += 1)
-            this.player.update(fixedStep, this.input);
         this.playTime += dt;
-        if (!this.lightsOut && this.playTime > LIGHTS_OUT_AFTER)
+        if (this.act === 1 && !this.lightsOut && this.playTime > LIGHTS_OUT_AFTER) {
             this.triggerLightsOut();
+        }
         this.setCamera(this.player.x, this.player.eyeY, this.player.z, this.player.yaw, this.player.pitch, CONFIG.camera.fov + (this.player.speed > 4.4 ? 3.5 : 0));
         this.updateFootsteps(dt);
         this.updateInteraction(dt);
@@ -1788,6 +2407,10 @@ export class Game {
         this.hud.setHold(this.holdProgress > 0.01 ? this.holdProgress : null, target.label);
     }
     updateObjective() {
+        if (this.act === 2) {
+            this.hud.setObjective(objectiveFor(this.act2Stage, this.collected.has("laptop")));
+            return;
+        }
         if (this.exitStage >= EXIT_STAGES.length) {
             this.hud.setObjective("Выход свободен — уходите!");
             return;
@@ -1840,18 +2463,19 @@ export class Game {
     }
     /** Чувства учительницы: шум зависит от того, как игрок двигается. */
     updateTeacher(dt) {
-        if (this.preset.absent) {
-            // Школа пустая: никак��й охоты и преследования.
-            this.teacher.sleep();
+        const online = this.online;
+        // В онлайне учительницу считает один игрок — тот, кто сейчас за неё
+        // отвечает. Остальные видят сгла��енную позу с сети.
+        // Режим «Призрак» и весь акт II: её нет в школе — никаких чувств и движения.
+        if (this.preset.absent || this.act === 2) {
+            if (this.teacher.state !== "sleep")
+                this.teacher.sleep();
             this.teacher.visible = false;
             this.teacher.alert = 0;
             this.teacher.seesPlayer = false;
             this.teacherTarget = null;
             return;
         }
-        const online = this.online;
-        // В онлайне учительницу считает один игрок — тот, кто сейчас за неё
-        // отвечает. Остальные видят сглаженную позу с сети.
         if (online && !online.authority) {
             const net = online.teacherView ?? online.teacherNet;
             if (net) {
@@ -1953,7 +2577,8 @@ export class Game {
                 this.teacher.scream();
                 this.audio.playAt("teacher_scream", { x: this.teacher.x, z: this.teacher.z }, this.player, { volume: 1, range: 45 });
                 this.shake = Math.max(this.shake, 0.8);
-                // Раньше всем писало «Она вас увидела!», даже если заметила другого.
+                // В онлайне она могла заметить другого игрока — тогда и пишем имя,
+                // а не «вас». Это был старый баг: сообщение пугало не того, кого надо.
                 const spotted = this.teacherTarget;
                 if (this.online && spotted) {
                     this.hud.toast(`Она заметила ${this.online.nameOf(spotted)}!`, 2.6);
@@ -1968,7 +2593,7 @@ export class Game {
                     this.hud.toast(`Она потеряла ${this.online.nameOf(chased)}`, 2.6);
                     return;
                 }
-                // Потеряла — значит и про шкафчик забыла.
+                // Потеряла нас — значит и про наш шкафчик забыла.
                 this.hideSpotted = false;
                 this.hud.toast("Кажется, потеряла...", 2.6);
             },
@@ -2018,13 +2643,19 @@ export class Game {
         if (this.itemsVisible) {
             const items = new MeshBuilder();
             const highlighted = this.target && this.target.kind === "item" ? this.target.item : null;
-            if (!this.flashlightOwned) {
+            if (!this.flashlightOwned && this.act === 1) {
                 buildItemPickup(items, FLASHLIGHT_ITEM, this.time, highlighted?.id === "flashlight");
             }
-            for (const def of QUEST_ITEMS) {
+            for (const def of this.act === 2 ? ACT2_ITEMS : QUEST_ITEMS) {
                 if (this.collected.has(def.id))
                     continue;
+                if (this.act === 2 && !this.act2ItemAvailable(def))
+                    continue;
                 buildItemPickup(items, def, this.time, highlighted?.id === def.id);
+            }
+            if (this.act === 2 && this.act2LaptopPlaced) {
+                // Поставленный на щит ноутбук светится экраном — маяк в темноте.
+                buildItemModel(items, "laptop", { x: ACT2_PANEL.x, y: ACT2_PANEL.laptopY, z: ACT2_PANEL.laptopZ, yaw: Math.PI }, 1.15, true);
             }
             this.renderer.upsertDynamic("items", items);
             this.renderer.setDynamicVisible("items", !items.isEmpty);

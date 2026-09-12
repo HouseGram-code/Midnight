@@ -6,7 +6,7 @@
  */
 import { requireElement, setHidden, setText } from "./dom.js";
 import { DIFFICULTY_PRESETS, difficultyOf } from "../game/difficulty.js";
-export const GAME_VERSION = "1.0.2-beta";
+export const GAME_VERSION = "1.0.3-beta";
 export const QUALITY_LEVELS = ["auto", "low", "medium", "high"];
 const STORAGE_KEY = "school3d.settings.v1";
 const DEFAULT_SETTINGS = {
@@ -71,19 +71,6 @@ export function requestMobileLandscape() {
         // iOS Safari не разрешает программный lock — CSS попросит повернуть устройство.
     }
 }
-/** Закрытый акт: трясём карточку и объясняем, почему не запускается. */
-function refuseLocked(card) {
-    card.classList.remove("act--shake");
-    // Перезапуск анимации: без reflow класс не сработает второй раз.
-    void card.offsetWidth;
-    card.classList.add("act--shake");
-    try {
-        navigator.vibrate?.(18);
-    }
-    catch {
-        // вибрации может не быть
-    }
-}
 export class Menu {
     callbacks;
     screen = requireElement("menu");
@@ -117,21 +104,15 @@ export class Menu {
         setText(this.versionEl, `версия ${GAME_VERSION}`);
         // Кнопка «Играть» ведёт на выбор акта, а не сразу в игру.
         this.playButton.addEventListener("click", () => this.showPanel("acts"));
+        const actsNote = requireElement("acts-note");
         requireElement("act-1").addEventListener("click", () => {
             requestMobileLandscape();
-            this.callbacks.onPlay();
+            this.callbacks.onPlay(1);
         });
-        const lockedAct = requireElement("act-2");
-        const actsNote = requireElement("acts-note");
-        lockedAct.addEventListener("click", () => {
-            refuseLocked(lockedAct);
-            setText(actsNote, "Акт II закрыт: он ещё в разработке. Пока играется Акт I.");
-        });
-        const onlineLockedAct = requireElement("online-act-2");
-        onlineLockedAct.addEventListener("click", () => {
-            onlineLockedAct.classList.remove("act--shake");
-            void onlineLockedAct.offsetWidth;
-            onlineLockedAct.classList.add("act--shake");
+        requireElement("act-2").addEventListener("click", () => {
+            setText(actsNote, "Акт II: взрыв школы. Второй этаж, динамит и 5 минут.");
+            requestMobileLandscape();
+            this.callbacks.onPlay(2);
         });
         this.bindPanel("menu-open-settings", "settings");
         this.bindPanel("menu-open-controls", "controls");
@@ -199,11 +180,12 @@ export class Menu {
         requireElement(buttonId).addEventListener("click", () => this.showPanel(panel));
     }
     refreshLabels() {
-        const preset = DIFFICULTY_PRESETS[this.settings.difficulty];
-        setText(this.difficultyNote, `${preset.note} Жизней: ${preset.lives}.`);
         setText(this.sensitivityValue, `${Math.round(this.settings.sensitivity * 100)}%`);
         setText(this.volumeValue, `${Math.round(this.settings.volume * 100)}%`);
         setText(this.brightnessValue, `${Math.round(this.settings.brightness * 100)}%`);
+        // Под списком сложности сразу пишем, что именно меняется.
+        const preset = DIFFICULTY_PRESETS[this.settings.difficulty];
+        setText(this.difficultyNote, `${preset.note} Жизней: ${preset.lives}.`);
     }
     showPanel(panel) {
         if (this.panel === "online" && panel !== "online")

@@ -45,8 +45,10 @@ export interface MatchInfo {
 	players: MatchPlayer[]
 	/** Через сколько миллисекунд после получения начинать кат-сцену. */
 	startIn: number
-	/** Сложность матча — её задаёт создатель. */
+	/** Сложность матча: её выбирает создатель комнаты. */
 	difficulty: string
+	/** Какой акт играем всей командой. */
+	act?: 1 | 2
 }
 
 export interface ChatMessage {
@@ -76,8 +78,9 @@ export class OnlineSession {
 	name: string
 	phase: SessionPhase = "idle"
 	match: MatchInfo | null = null
-	/** Выбранная в панели сложность. */
+	/** Выбранная сложность (важна только для хоста). */
 	private difficulty = "normal"
+	private act: 1 | 2 = 1
 	room: NetChannel | null = null
 
 	private lobby: NetChannel | null = null
@@ -115,6 +118,27 @@ export class OnlineSession {
 
 	get isHost(): boolean {
 		return this.match ? this.match.host === this.id : false
+	}
+
+	/**
+	 * Сложность, которую хост раздаёт всем в матче.
+	 * У остальных значение просто игнорируется.
+	 */
+	setDifficulty(value: string): void {
+		this.difficulty = value
+	}
+
+	/** Акт, который хост раздаёт всем в матче. */
+	setAct(value: 1 | 2): void {
+		this.act = value
+	}
+
+	get matchAct(): 1 | 2 {
+		return this.match?.act ?? this.act
+	}
+
+	get matchDifficulty(): string {
+		return this.match?.difficulty ?? this.difficulty
 	}
 
 	get isCodeRoom(): boolean {
@@ -233,11 +257,6 @@ export class OnlineSession {
 		this.evaluate(elapsed)
 	}
 
-	/** Сложность, которую разошлём всем, если мы хост. */
-	setDifficulty(value: string): void { this.difficulty = value }
-	/** Сложность текущего матча. */
-	get matchDifficulty(): string { return this.match?.difficulty ?? this.difficulty }
-
 	startCodeMatch(): boolean {
 		if (!this.isCodeHost || this.phase !== "searching") return false
 		const group = this.searchers.slice(0, MAX_PLAYERS)
@@ -248,6 +267,7 @@ export class OnlineSession {
 			players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
 			startIn: 3200,
 			difficulty: this.difficulty,
+			act: this.act,
 		}
 		this.lobby?.send("match", info as unknown as NetPayload)
 		return true
@@ -275,6 +295,7 @@ export class OnlineSession {
 			players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
 			startIn: 3200,
 			difficulty: this.difficulty,
+			act: this.act,
 		}
 		this.lobby?.send("match", info as unknown as NetPayload)
 	}
@@ -302,6 +323,7 @@ export class OnlineSession {
 			players,
 			startIn: typeof payload.startIn === "number" ? payload.startIn : 3200,
 			difficulty: typeof payload.difficulty === "string" ? payload.difficulty : "normal",
+			act: payload.act === 2 ? 2 : 1,
 		}
 		this.match = info
 		this.setPhase("found")

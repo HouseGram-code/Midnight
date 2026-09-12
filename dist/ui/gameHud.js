@@ -26,6 +26,9 @@ export class GameHud {
     letterboxEl = requireElement("letterbox");
     skipEl = requireElement("skip-hint");
     toastEl = requireElement("toast");
+    timerEl = requireElement("act2-timer");
+    timerValueEl = requireElement("act2-timer-value");
+    timerLabelEl = requireElement("act2-timer-label");
     hearts = -1;
     maxHearts = 5;
     itemsSignature = "";
@@ -35,8 +38,26 @@ export class GameHud {
     holdValue = -1;
     damageTimer = 0;
     toastTimer = 0;
+    timerSignature = "-";
     setVisible(visible) {
         setHidden(this.root, !visible);
+    }
+    /**
+     * Таймер до взрыва (акт II).
+     * `null` — таймера нет; `defused` — система взломана.
+     */
+    setTimer(text, label = "до взрыва", mode = "normal") {
+        const signature = text === null ? "-" : `${text}|${label}|${mode}`;
+        if (signature === this.timerSignature)
+            return;
+        this.timerSignature = signature;
+        setHidden(this.timerEl, text === null);
+        if (text === null)
+            return;
+        setText(this.timerValueEl, text);
+        setText(this.timerLabelEl, label);
+        this.timerEl.classList.toggle("act2-timer--warn", mode === "warn");
+        this.timerEl.classList.toggle("act2-timer--safe", mode === "safe");
     }
     setLives(current, max = 5) {
         if (this.hearts === current && this.maxHearts === max)
@@ -183,6 +204,8 @@ export class GameHud {
         }
     }
     reset() {
+        this.timerSignature = "-";
+        this.setTimer(null);
         this.hotbarSignature = "-";
         this.setHotbar([]);
         this.setFade(0);

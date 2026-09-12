@@ -1,19 +1,26 @@
-/** Сложность игры: один набор настроек для одиночки и для онлайна. */
+/**
+ * Сложность игры.
+ *
+ * Один список уровней на всю игру: одиночный режим берёт его из настроек,
+ * онлайн — из выбора создателя комнаты (уровень приходит вместе с матчем).
+ *
+ * Уровень «Призрак» — режим без учительницы: она ушла из школы и никого
+ * не видит. Это спокойный осмотр школы и обучение управлению.
+ */
 
 export type Difficulty = "ghost" | "easy" | "normal" | "hard"
 
-export const DIFFICULTIES: Difficulty[] = ["ghost", "easy", "normal", "hard"]
+export const DIFFICULTIES: ReadonlyArray<Difficulty> = ["ghost", "easy", "normal", "hard"]
 
 export interface DifficultyPreset {
-	/** Ключ пресета. */
 	id: Difficulty
-	/** Полное название для меню. */
+	/** Название для меню. */
 	label: string
-	/** Короткое название для чипов и тостов. */
+	/** Короткая подпись для чипа в онлайне. */
 	short: string
-	/** Пояснение под выбором. */
+	/** Пояснение под списком. */
 	note: string
-	/** Сколько сердечек выдаём на забег. */
+	/** Сколько жизней на забег. */
 	lives: number
 	/** Множитель скорости учительницы. */
 	speed: number
@@ -21,9 +28,9 @@ export interface DifficultyPreset {
 	sight: number
 	/** Множитель времени реакции (больше — замечает медленнее). */
 	notice: number
-	/** Множитель слуха, 0 — вообще не слышит. */
+	/** Множитель слуха. */
 	hear: number
-	/** Учительницы нет в школе вообще. */
+	/** Её вообще нет в школе. */
 	absent: boolean
 }
 
@@ -78,12 +85,11 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
 	},
 }
 
-/** Любую строку приводим к известной сложности. */
+/** Разбор значения из localStorage или из сети. */
 export function difficultyOf(raw: unknown): Difficulty {
-	return typeof raw === "string" && (DIFFICULTIES as string[]).includes(raw) ? (raw as Difficulty) : "normal"
+	return DIFFICULTIES.includes(raw as Difficulty) ? (raw as Difficulty) : "normal"
 }
 
-/** Пресет по любому вводу. */
 export function presetOf(raw: unknown): DifficultyPreset {
 	return DIFFICULTY_PRESETS[difficultyOf(raw)]
 }
