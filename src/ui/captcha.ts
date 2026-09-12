@@ -6,6 +6,7 @@
  */
 
 import { makeCaptcha, type CaptchaTask } from "../game/act2.js"
+import type { Difficulty } from "../game/difficulty.js"
 import { requireElement, setHidden, setText } from "./dom.js"
 
 export interface CaptchaCallbacks {
@@ -36,6 +37,7 @@ export class CaptchaPanel {
 	private hacking = false
 	private open = false
 	private lastPercent = -1
+	private difficulty: Difficulty = "normal"
 
 	constructor(private readonly callbacks: CaptchaCallbacks) {
 		this.hackButton.addEventListener("click", () => {
@@ -64,8 +66,9 @@ export class CaptchaPanel {
 	}
 
 	/** Новая сессия капчи. */
-	start(): void {
-		this.tasks = makeCaptcha()
+	start(difficulty: Difficulty = "normal"): void {
+		this.difficulty = difficulty
+		this.tasks = makeCaptcha(difficulty)
 		this.index = 0
 		this.solved = false
 		this.hacking = false
@@ -73,7 +76,12 @@ export class CaptchaPanel {
 		this.hackButton.disabled = true
 		setText(this.hackButton, "Взломать")
 		setHidden(this.progressEl, true)
-		setText(this.statusEl, "Пройдите проверку, чтобы получить доступ к каналу детонации.")
+		setText(
+			this.statusEl,
+			difficulty === "easy" || difficulty === "ghost"
+				? "Лёгкая проверка: решите одно простое задание."
+				: "Пройдите проверку, чтобы получить доступ к каналу детонации.",
+		)
 		this.render()
 		this.show(true)
 	}
@@ -165,7 +173,7 @@ export class CaptchaPanel {
 		this.callbacks.onSound?.("fail")
 		button.classList.add("captcha__option--bad")
 		setText(this.statusEl, "Неверно. Система сбросила проверку — шаг заново.")
-		const fresh = makeCaptcha()
+		const fresh = makeCaptcha(this.difficulty)
 		this.tasks[this.index] = fresh[0]
 		window.setTimeout(() => this.render(), 520)
 	}

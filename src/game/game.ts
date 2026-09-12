@@ -393,7 +393,7 @@ export class Game {
 	private openTerminal(): void {
 		const panel = this.captcha()
 		if (this.act2Hacking) panel.showHacking()
-		else panel.start()
+		else panel.start(this.difficulty)
 		this.hud.setPrompt(null)
 		this.hud.setHold(null)
 		this.audio.play("click", { volume: 0.5 })
@@ -724,8 +724,13 @@ export class Game {
 				duration: 2.2,
 				onEnter: () => {
 					this.fade = 1
+					this.exitVisible = true
+					this.exitAngle = 1.35
+					this.teacherHuman = false
+					this.teacher.visible = true
+					this.teacher.placeAt(EXIT_DOOR.x + 0.85, EXIT_DOOR.z + 0.8, Math.PI)
 					this.audio.play("stinger", { volume: 0.85 })
-					this.say("Обрез у нас. И в этот момент всё погасло…")
+					this.say("Обрез у нас. Внизу хлопнула главная дверь…")
 				},
 				onUpdate: () => {
 					this.fade = 1
@@ -733,22 +738,29 @@ export class Game {
 			},
 			{
 				id: "locked",
-				duration: 3.8,
+				duration: 5.2,
 				onEnter: () => {
 					this.audio.play("door_full", { volume: 0.9 })
-					this.audio.play("locked", { volume: 0.95, delay: 0.9 })
-					this.say("Главная дверь заперта. Снаружи щёлкнул замок.")
+					this.audio.play("locked", { volume: 0.95, delay: 2.7 })
+					this.say("Она сама закрывает двери и запирает школу снаружи.")
 				},
 				onUpdate: (progress) => {
-					this.fade = 1 - easeOut(Math.min(1, progress * 2))
-					this.sceneCamera(
-						atX,
-						eye,
-						atZ,
-						mixAngle(yaw, yaw + 0.9, easeInOut(progress)),
-						-0.04,
-						70,
+					const close = easeInOut(Math.max(0, Math.min(1, (progress - 0.18) / 0.58)))
+					const reveal = 1 - easeOut(Math.min(1, progress * 4.5))
+					const hide = easeInOut(Math.max(0, Math.min(1, (progress - 0.82) / 0.18)))
+					this.fade = Math.max(reveal, hide)
+					this.exitAngle = mix(1.35, 0, close)
+					this.teacher.placeAt(
+						EXIT_DOOR.x + mix(0.95, 0.55, close),
+						EXIT_DOOR.z + mix(1.15, 0.7, close),
+						Math.PI,
 					)
+					this.sceneCamera(EXIT_DOOR.x, 1.68, mix(EXIT_DOOR.z + 5.6, EXIT_DOOR.z + 4.6, easeInOut(progress)), 0, -0.03, 68)
+				},
+				onExit: () => {
+					this.exitAngle = 0
+					this.teacher.visible = false
+					this.fade = 1
 				},
 			},
 			{
@@ -761,6 +773,7 @@ export class Game {
 					this.audio.play("door_open", { volume: 0.55, delay: 1.4 })
 				},
 				onUpdate: (progress) => {
+					this.fade = 1 - easeOut(Math.min(1, progress * 2.4))
 					this.sceneCamera(
 						atX,
 						eye,
@@ -805,6 +818,7 @@ export class Game {
 		this.timeline = null
 		this.fade = 0
 		this.shake = 0
+		this.teacher.visible = false
 		this.hud.setLetterbox(false)
 		this.hud.setSkipHint(null)
 		this.say(null)

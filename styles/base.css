@@ -486,10 +486,12 @@ kbd {
 
 .menu {
 	justify-content: center;
+	align-items: flex-start;
 	background:
 		radial-gradient(120% 90% at 50% 6%, rgba(26, 8, 8, 0.6) 0%, rgba(2, 3, 6, 0.96) 62%),
 		linear-gradient(180deg, rgba(2, 3, 6, 0.92), rgba(0, 0, 0, 0.98));
-	overflow: hidden;
+	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 .menu__sky {
@@ -534,6 +536,17 @@ kbd {
 .menu__stage {
 	z-index: 1;
 	width: min(560px, 100%);
+	margin-block: auto;
+}
+
+@media (max-height: 820px) {
+	.menu {
+		padding-block: 20px;
+	}
+
+	.menu__stage {
+		margin-block: 0;
+	}
 }
 
 .menu__panel {

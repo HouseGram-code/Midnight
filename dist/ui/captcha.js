@@ -25,6 +25,7 @@ export class CaptchaPanel {
     hacking = false;
     open = false;
     lastPercent = -1;
+    difficulty = "normal";
     constructor(callbacks) {
         this.callbacks = callbacks;
         this.hackButton.addEventListener("click", () => {
@@ -51,8 +52,9 @@ export class CaptchaPanel {
         return this.hacking;
     }
     /** Новая сессия капчи. */
-    start() {
-        this.tasks = makeCaptcha();
+    start(difficulty = "normal") {
+        this.difficulty = difficulty;
+        this.tasks = makeCaptcha(difficulty);
         this.index = 0;
         this.solved = false;
         this.hacking = false;
@@ -60,7 +62,9 @@ export class CaptchaPanel {
         this.hackButton.disabled = true;
         setText(this.hackButton, "Взломать");
         setHidden(this.progressEl, true);
-        setText(this.statusEl, "Пройдите проверку, чтобы получить доступ к каналу детонации.");
+        setText(this.statusEl, difficulty === "easy" || difficulty === "ghost"
+            ? "Лёгкая проверка: решите одно простое задание."
+            : "Пройдите проверку, чтобы получить доступ к каналу детонации.");
         this.render();
         this.show(true);
     }
@@ -147,7 +151,7 @@ export class CaptchaPanel {
         this.callbacks.onSound?.("fail");
         button.classList.add("captcha__option--bad");
         setText(this.statusEl, "Неверно. Система сбросила проверку — шаг заново.");
-        const fresh = makeCaptcha();
+        const fresh = makeCaptcha(this.difficulty);
         this.tasks[this.index] = fresh[0];
         window.setTimeout(() => this.render(), 520);
     }

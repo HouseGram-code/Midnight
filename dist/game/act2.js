@@ -165,6 +165,43 @@ function mathTask() {
         hint: "Код канала детонатора",
     };
 }
+/** Простое сложение для лёгкого режима: ответ можно посчитать без калькулятора. */
+function easyMathTask() {
+    const a = randomInt(2, 9);
+    const b = randomInt(2, 9);
+    const value = a + b;
+    const answer = String(value);
+    const wrong = new Set();
+    for (const delta of [-2, -1, 1, 2]) {
+        if (value + delta > 0)
+            wrong.add(String(value + delta));
+        if (wrong.size === 3)
+            break;
+    }
+    return {
+        question: `${a} + ${b} = ?`,
+        answer,
+        options: shuffle([answer, ...wrong]),
+        hint: "Лёгкая проверка",
+    };
+}
+/** Короткий очевидный ряд для лёгкого режима. */
+function easySequenceTask() {
+    const start = randomInt(1, 5);
+    const step = randomInt(2, 4);
+    const answer = String(start + step * 3);
+    return {
+        question: `${start}, ${start + step}, ${start + step * 2}, ?`,
+        answer,
+        options: shuffle([
+            answer,
+            String(start + step * 3 - 1),
+            String(start + step * 3 + 1),
+            String(start + step * 4),
+        ]),
+        hint: `Прибавляйте ${step}`,
+    };
+}
 /** Задача «собери контрольную сумму»: сумма цифр серийника. */
 function checksumTask() {
     const serial = String(randomInt(100000, 999999));
@@ -200,10 +237,14 @@ function wireTask() {
         hint: "Выбор канала",
     };
 }
-/** Набор заданий капчи: три шага, каждый из разных типов. */
-export function makeCaptcha() {
+/** Набор заданий капчи зависит от выбранной сложности игры. */
+export function makeCaptcha(difficulty = "normal") {
+    if (difficulty === "ghost" || difficulty === "easy") {
+        return [shuffle([easyMathTask, easySequenceTask])[0]()];
+    }
     const builders = shuffle([sequenceTask, mathTask, checksumTask, wireTask]);
-    return builders.slice(0, 3).map((build) => build());
+    const count = difficulty === "hard" ? 4 : 3;
+    return builders.slice(0, count).map((build) => build());
 }
 /** ММ:СС для таймера. */
 export function formatTimer(seconds) {
