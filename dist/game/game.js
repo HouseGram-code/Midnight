@@ -13,6 +13,7 @@ import { MAX_EXTRA_FLASHES, } from "../core/renderer.js";
 const REMOTE_FLASH_VIEW = 46;
 /** Общий пустой массив — чтобы не сорить в GC каждый кадр. */
 const EMPTY_FLASHES = [];
+import { FLOOR2_Y } from "../world/floor2.js";
 import { BUILDING } from "../world/layout.js";
 import { Teacher } from "../entities/teacher.js";
 import { NavGraph } from "./nav.js";
@@ -564,7 +565,10 @@ export class Game {
         this.lightArmed = true;
         this.addToHotbar("flashlight");
         this.slot = 0;
-        this.placePlayer(8.2, 3.4, 0);
+        // Кат-сцена заканчивается на площадке второго этажа. Раньше placePlayer
+        // всегда сбрасывал Y в ноль, поэтому игрок оказывался под площадкой,
+        // за лестничным маршем, и не мог выйти из лестничной клетки.
+        this.placePlayer(8.2, 3.4, 0, FLOOR2_Y);
         this.hud.setLetterbox(false);
         this.hud.setSkipHint(null);
         this.say(null);
@@ -1155,13 +1159,13 @@ export class Game {
         this.sceneShiftZ += (targetZ - this.sceneShiftZ) * 0.16;
         this.setCamera(x + this.sceneShiftX, y, z + this.sceneShiftZ, yaw, pitch, fov);
     }
-    placePlayer(x, z, yaw) {
+    placePlayer(x, z, yaw, y = 0) {
         // Если точка оказалась внутри геометрии (парта, стул), игрок не смог бы
         // сделать ни шага: шаг разрешён только в свободную клетку.
-        const spot = this.findFreeSpot(x, z);
+        const spot = this.findFreeSpot(x, z, y);
         this.player.x = spot.x;
         this.player.z = spot.z;
-        this.player.y = 0;
+        this.player.y = y;
         this.player.yaw = yaw;
         this.player.pitch = 0;
         this.player.velocityX = 0;
@@ -1170,10 +1174,10 @@ export class Game {
         this.player.onGround = true;
     }
     /** Ближайшая свободная точка: идём кольцами вокруг заданной. */
-    findFreeSpot(x, z) {
+    findFreeSpot(x, z, y = 0) {
         const radius = CONFIG.player.radius;
         const height = CONFIG.player.height;
-        if (!this.collision.overlaps(x, 0, z, radius, height))
+        if (!this.collision.overlaps(x, y, z, radius, height))
             return { x, z };
         for (let ring = 1; ring <= 24; ring++) {
             const distance = ring * 0.2;
@@ -1181,7 +1185,7 @@ export class Game {
                 const angle = (step / 24) * Math.PI * 2;
                 const nx = x + Math.cos(angle) * distance;
                 const nz = z + Math.sin(angle) * distance;
-                if (!this.collision.overlaps(nx, 0, nz, radius, height))
+                if (!this.collision.overlaps(nx, y, nz, radius, height))
                     return { x: nx, z: nz };
             }
         }

@@ -156,7 +156,7 @@ export class OnlinePanel {
     renderAct() {
         this.actChips.forEach((chip, index) => {
             const active = index + 1 === this.act;
-            chip.classList.toggle("act--active", active);
+            chip.classList.toggle("act-chip--active", active);
             chip.setAttribute("aria-selected", String(active));
         });
     }

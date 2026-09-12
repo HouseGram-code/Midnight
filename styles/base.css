@@ -237,9 +237,11 @@ body {
 	inset: 0;
 	z-index: 80;
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	justify-content: flex-start;
 	padding: clamp(20px, 6vw, 96px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	background: linear-gradient(100deg, rgba(2, 3, 6, 0.94) 0%, rgba(4, 5, 10, 0.72) 45%, rgba(4, 5, 10, 0.1) 100%);
 }
 
@@ -253,6 +255,7 @@ body {
 .menu__stage {
 	position: relative;
 	width: min(520px, 100%);
+	margin-block: auto;
 }
 
 .menu__panel {
@@ -1333,67 +1336,6 @@ kbd {
 	letter-spacing: 0.02em;
 }
 
-/* Закрытый акт: затемнён и с замком. */
-.act--locked {
-	cursor: not-allowed;
-}
-
-.act--locked .act__art {
-	filter: saturate(1.05) brightness(0.9);
-}
-
-.act--locked::after {
-	content: "";
-	position: absolute;
-	inset: 0;
-	background: rgba(6, 8, 12, 0.22);
-	pointer-events: none;
-}
-
-.act--locked:hover,
-.act--locked:focus-visible {
-	transform: none;
-}
-
-.act__lock {
-	position: absolute;
-	z-index: 2;
-	top: 58px;
-	left: 50%;
-	transform: translateX(-50%);
-	display: grid;
-	place-items: center;
-	width: 58px;
-	height: 58px;
-	border-radius: 50%;
-	border: 1px solid rgba(255, 255, 255, 0.28);
-	background: rgba(10, 12, 18, 0.66);
-	color: #f2e6d4;
-	box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
-	backdrop-filter: blur(2px);
-}
-
-/* Тряска при попытке открыть закрытый акт. */
-.act--shake {
-	animation: act-shake 0.36s ease;
-}
-
-@keyframes act-shake {
-	0%,
-	100% {
-		transform: translateX(0);
-	}
-	20% {
-		transform: translateX(-7px);
-	}
-	45% {
-		transform: translateX(6px);
-	}
-	70% {
-		transform: translateX(-3px);
-	}
-}
-
 /* Выбор акта в онлайн-панели. */
 .online__acts {
 	display: flex;
@@ -1428,9 +1370,22 @@ kbd {
 	font-weight: 600;
 }
 
-.act-chip--locked {
-	opacity: 0.55;
-	cursor: not-allowed;
+.act-chip--beta {
+	border-color: rgba(243, 160, 94, 0.58);
+	background: rgba(116, 55, 24, 0.32);
+	color: #ffe2ca;
+}
+
+.act-chip--beta span {
+	margin-left: 6px;
+	font: 800 10px/1 var(--mono);
+	letter-spacing: 0.1em;
+}
+
+.act-chip--beta.act-chip--active {
+	border-color: #f3a05e;
+	background: #f3a05e;
+	color: #1b0e08;
 }
 
 /* ---------- сложность и обновлённый блок онлайна (1.0.2) ---------- */

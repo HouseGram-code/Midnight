@@ -110,7 +110,7 @@ export class Menu {
             this.callbacks.onPlay(1);
         });
         requireElement("act-2").addEventListener("click", () => {
-            setText(actsNote, "Акт II: взрыв школы. Второй этаж, динамит и 5 минут.");
+            setText(actsNote, "Запускаем бета-Акт II: второй этаж, динамит и 5 минут.");
             requestMobileLandscape();
             this.callbacks.onPlay(2);
         });
