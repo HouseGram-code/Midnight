@@ -1,7 +1,7 @@
 /** Панель онлайна: случайный подбор или приватная комната по коду. */
 import { isMockMode, LoopbackClient, RealtimeClient } from "../net/realtime.js";
 import { MAX_PLAYERS, MIN_PLAYERS, OnlineSession, SEARCH_SECONDS } from "../net/session.js";
-import { skinFor } from "../net/remote.js";
+import { onlineSkinFor } from "../net/remote.js";
 import { requireElement, setHidden, setText } from "./dom.js";
 import { DIFFICULTY_PRESETS, difficultyOf } from "../game/difficulty.js";
 const NAME_KEY = "school3d.name.v1";
@@ -385,7 +385,7 @@ export class OnlinePanel {
             return;
         const searching = members.filter((member) => member.searching && !member.playing);
         this.rosterEl.replaceChildren();
-        searching.slice(0, MAX_PLAYERS).forEach((member, index) => this.rosterEl.append(this.rosterRow(member.name, index, member.id === this.session?.id, member.owner)));
+        searching.slice(0, MAX_PLAYERS).forEach((member, index) => this.rosterEl.append(this.rosterRow(member.name, index, member.skin, member.id === this.session?.id, member.owner)));
         for (let i = searching.length; i < MAX_PLAYERS; i += 1) {
             const empty = document.createElement("div");
             empty.className = "online-slot online-slot--empty";
@@ -395,8 +395,8 @@ export class OnlinePanel {
         this.refreshButtons();
     }
     renderMatchRoster(info) { this.rosterEl.replaceChildren(); for (const player of info.players)
-        this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id, player.owner)); }
-    rosterRow(name, index, self, owner) { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot); if (owner) {
+        this.rosterEl.append(this.rosterRow(player.name, player.index, player.skin, player.id === this.session?.id, player.owner)); }
+    rosterRow(name, index, skin, self, owner) { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = onlineSkinFor(skin, index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot); if (owner) {
         const mark = document.createElement("b");
         mark.className = "creator-emblem creator-emblem--small";
         mark.title = "Официальный создатель игры";

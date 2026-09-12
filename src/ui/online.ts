@@ -3,7 +3,7 @@ import { isMockMode, LoopbackClient, RealtimeClient } from "../net/realtime.js"
 import type { NetClient } from "../net/realtime.js"
 import { MAX_PLAYERS, MIN_PLAYERS, OnlineSession, SEARCH_SECONDS } from "../net/session.js"
 import type { LobbyMember, MatchInfo } from "../net/session.js"
-import { skinFor } from "../net/remote.js"
+import { onlineSkinFor } from "../net/remote.js"
 import { requireElement, setHidden, setText } from "./dom.js"
 import { DIFFICULTY_PRESETS, difficultyOf, type Difficulty } from "../game/difficulty.js"
 
@@ -300,12 +300,12 @@ export class OnlinePanel {
 	private renderRoster(members: LobbyMember[]): void {
 		if (this.pending) return
 		const searching = members.filter((member) => member.searching && !member.playing); this.rosterEl.replaceChildren()
-		searching.slice(0, MAX_PLAYERS).forEach((member, index) => this.rosterEl.append(this.rosterRow(member.name, index, member.id === this.session?.id, member.owner)))
+		searching.slice(0, MAX_PLAYERS).forEach((member, index) => this.rosterEl.append(this.rosterRow(member.name, index, member.skin, member.id === this.session?.id, member.owner)))
 		for (let i = searching.length; i < MAX_PLAYERS; i += 1) { const empty = document.createElement("div"); empty.className = "online-slot online-slot--empty"; empty.textContent = "свободно"; this.rosterEl.append(empty) }
 		this.refreshButtons()
 	}
-	private renderMatchRoster(info: MatchInfo): void { this.rosterEl.replaceChildren(); for (const player of info.players) this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id, player.owner)) }
-	private rosterRow(name: string, index: number, self: boolean, owner: boolean): HTMLElement { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot); if (owner) { const mark = document.createElement("b"); mark.className = "creator-emblem creator-emblem--small"; mark.title = "Официальный создатель игры"; row.append(mark) } row.append(label); return row }
+	private renderMatchRoster(info: MatchInfo): void { this.rosterEl.replaceChildren(); for (const player of info.players) this.rosterEl.append(this.rosterRow(player.name, player.index, player.skin, player.id === this.session?.id, player.owner)) }
+	private rosterRow(name: string, index: number, skin: number, self: boolean, owner: boolean): HTMLElement { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = onlineSkinFor(skin, index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot); if (owner) { const mark = document.createElement("b"); mark.className = "creator-emblem creator-emblem--small"; mark.title = "Официальный создатель игры"; row.append(mark) } row.append(label); return row }
 	private showCodeSetup(): void { this.activeCode = ""; this.codeHost = false; this.renderDifficulty(); setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true) }
 	private showCodeCard(code: string): void { setText(this.codeValue, code); setHidden(this.codeSetup, true); setHidden(this.codeCard, false) }
 	private async copyCode(): Promise<void> { if (!this.activeCode) return; try { await navigator.clipboard.writeText(this.activeCode); setText(this.copyCodeButton, "Скопировано"); setTimeout(() => setText(this.copyCodeButton, "Копировать"), 1400) } catch { this.setStatus(`Код комнаты: ${this.activeCode}`, "Выделите код и отправьте его друзьям.") } }

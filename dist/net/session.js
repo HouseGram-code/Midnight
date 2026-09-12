@@ -10,6 +10,7 @@
  * Серверных таблиц не нужно: всё живёт в presence и broadcast.
  */
 import { randomId } from "./realtime.js";
+import { selectedSkinId, skinCode } from "./remote.js";
 export const LOBBY_NAME = "school3d-lobby-v1";
 export const CODE_ROOM_PREFIX = "school3d-code-v1-";
 export const MAX_PLAYERS = 5;
@@ -33,6 +34,7 @@ export class OnlineSession {
     /** Выбранная сложность (важна только для хоста). */
     difficulty = "normal";
     act = 1;
+    skin = skinCode(selectedSkinId());
     room = null;
     lobby = null;
     searchStart = 0;
@@ -138,6 +140,7 @@ export class OnlineSession {
             searching: this.phase === "searching" || this.phase === "found",
             playing: this.phase === "match",
             since: this.searchStart,
+            skin: this.skin,
         });
     }
     readPresence() {
@@ -153,6 +156,7 @@ export class OnlineSession {
                 searching: Boolean(meta.searching),
                 playing: Boolean(meta.playing),
                 since: typeof meta.since === "number" ? meta.since : 0,
+                skin: Number(meta.skin) === 1 ? 1 : 0,
             });
         }
         this.members = list;
@@ -202,7 +206,7 @@ export class OnlineSession {
         const info = {
             room: `school3d-room-${this.codeRoom}-${randomId()}`,
             host: this.id,
-            players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
+            players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index, skin: member.skin })),
             startIn: 3200,
             difficulty: this.difficulty,
             act: this.act,
@@ -230,7 +234,7 @@ export class OnlineSession {
         const info = {
             room: `school3d-room-${randomId()}`,
             host: this.id,
-            players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
+            players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index, skin: member.skin })),
             startIn: 3200,
             difficulty: this.difficulty,
             act: this.act,
@@ -253,6 +257,7 @@ export class OnlineSession {
                 name: typeof entry.name === "string" ? entry.name : "Игрок",
                 owner: Boolean(entry.owner) && String(entry.name ?? "").trim().toLowerCase() === "goh",
                 index: typeof entry.index === "number" ? entry.index : players.length,
+                skin: Number(entry.skin) === 1 ? 1 : 0,
             });
         }
         if (!room || !players.some((player) => player.id === this.id))
@@ -273,7 +278,7 @@ export class OnlineSession {
     joinRoom(info) {
         const channel = this.client.channel(info.room);
         this.room = channel;
-        channel.track({ id: this.id, name: this.name, owner: this.owner });
+        channel.track({ id: this.id, name: this.name, owner: this.owner, skin: this.skin });
         channel.on("c", (payload) => {
             const text = typeof payload.m === "string" ? payload.m : "";
             if (!text)

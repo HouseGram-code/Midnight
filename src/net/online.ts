@@ -8,7 +8,7 @@
  */
 
 import type { MeshBuilder } from "../core/mesh.js"
-import { buildRemotePlayer, skinFor } from "./remote.js"
+import { buildRemotePlayer, onlineSkinFor, selectedSkinId, skinCode } from "./remote.js"
 import type { ItemKind } from "../game/items.js"
 import type { PlayerSkin } from "./remote.js"
 import { STATE_HZ, TEACHER_HZ } from "./session.js"
@@ -126,6 +126,7 @@ export class OnlineGame {
 	readonly players = new Map<string, NetPlayer>()
 	readonly localIndex: number
 	readonly localSkin: PlayerSkin
+	readonly localSkinCode: number
 	readonly isHost: boolean
 	/** Последняя поза учительницы с сети — цель для сглаживания. */
 	teacherNet: TeacherSnapshot | null = null
@@ -151,7 +152,8 @@ export class OnlineGame {
 	) {
 		const me = match.players.find((player) => player.id === session.id)
 		this.localIndex = me ? me.index : 0
-		this.localSkin = skinFor(this.localIndex)
+		this.localSkinCode = me?.skin ?? skinCode(selectedSkinId())
+		this.localSkin = onlineSkinFor(this.localSkinCode, this.localIndex)
 		this.isHost = match.host === session.id
 		for (const player of match.players) {
 			this.names.set(player.id, player.name)
@@ -161,7 +163,7 @@ export class OnlineGame {
 				name: player.name,
 				owner: player.owner,
 				index: player.index,
-				skin: skinFor(player.index),
+				skin: onlineSkinFor(player.skin, player.index),
 				x: 17.5,
 				y: 0,
 				z: 6,
@@ -292,7 +294,7 @@ export class OnlineGame {
 				name: this.nameOf(id),
 				owner: false,
 				index,
-				skin: skinFor(index),
+				skin: onlineSkinFor(payload.q, index),
 				x: Number(payload.x ?? 0),
 				y: Number(payload.y ?? 0),
 				z: Number(payload.z ?? 0),
@@ -333,6 +335,7 @@ export class OnlineGame {
 		player.active = (flags & 64) !== 0
 		player.lives = Number(payload.l ?? player.lives)
 		player.items = Number(payload.k ?? player.items)
+		player.skin = onlineSkinFor(payload.q, player.index)
 		player.last = Date.now()
 	}
 
@@ -379,6 +382,7 @@ export class OnlineGame {
 				l: local.lives,
 				k: local.items,
 				w: heldCode(local.held),
+				q: this.localSkinCode,
 			}
 			const packetJson = JSON.stringify(packet)
 			const now = performance.now()

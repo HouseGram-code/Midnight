@@ -19,6 +19,27 @@ export interface PlayerSkin {
 	tag: string
 }
 
+export type PlayerSkinId = "classic" | "ryzik3489"
+
+/** Код ездит по сети: 0 — обычный, 1 — ryzik3489. Новые варианты добавлять только в конец. */
+export function skinCode(id: PlayerSkinId): number {
+	return id === "ryzik3489" ? 1 : 0
+}
+
+export function skinIdFromCode(code: unknown): PlayerSkinId {
+	return Number(code) === 1 ? "ryzik3489" : "classic"
+}
+
+export function selectedSkinId(): PlayerSkinId {
+	try {
+		return typeof localStorage !== "undefined" && localStorage.getItem("school3d.skin.v1") === "ryzik3489"
+			? "ryzik3489"
+			: "classic"
+	} catch {
+		return "classic"
+	}
+}
+
 /** Пять разных школьников — чтобы в темноте было понятно, кто есть кто. */
 export const PLAYER_SKINS: readonly PlayerSkin[] = [
 	{
@@ -60,6 +81,18 @@ export const PLAYER_SKINS: readonly PlayerSkin[] = [
 
 export function skinFor(index: number): PlayerSkin {
 	return PLAYER_SKINS[((index % PLAYER_SKINS.length) + PLAYER_SKINS.length) % PLAYER_SKINS.length]
+}
+
+/** Выбранный магазинный скин; обычный сохраняет цвет игрока по номеру. */
+export function onlineSkinFor(code: unknown, index: number): PlayerSkin {
+	if (skinIdFromCode(code) !== "ryzik3489") return skinFor(index)
+	return {
+		shirt: [0.055, 0.06, 0.075],
+		pants: [0.07, 0.09, 0.13],
+		hair: [0.045, 0.035, 0.03],
+		skin: [0.76, 0.58, 0.48],
+		tag: "#f3a05e",
+	}
 }
 
 export interface RemotePose {
