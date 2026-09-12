@@ -6,22 +6,62 @@
  * а просто тускнеет — по нему ищут друг друга.
  */
 import { requireElement, setHidden, setText } from "./dom.js";
+const CHAT_EMOJIS = new Map([
+    [":hello-smile:", "./assets/ui/emoji-smile.svg"],
+    [":hello-laugh:", "./assets/ui/emoji-laugh.svg"],
+    [":hello-wink:", "./assets/ui/emoji-wink.svg"],
+    [":hello-cool:", "./assets/ui/emoji-cool.svg"],
+    [":hello-heart:", "./assets/ui/emoji-heart.svg"],
+]);
+function appendChatContent(parent, text) {
+    const parts = text.split(/(:hello-(?:smile|laugh|wink|cool|heart):)/g);
+    for (const part of parts) {
+        const src = CHAT_EMOJIS.get(part);
+        if (!src) {
+            if (part)
+                parent.append(document.createTextNode(part));
+            continue;
+        }
+        const image = document.createElement("img");
+        image.className = "net-chat__drawn-emoji";
+        image.src = src;
+        image.alt = "смайлик";
+        parent.append(image);
+    }
+}
 export class NetHud {
     root = requireElement("net-hud");
     tagLayer = requireElement("net-tags");
     selfTag = requireElement("net-self");
     selfName = requireElement("net-self-name");
+    selfAvatar = requireElement("net-self-avatar");
     selfInfo = requireElement("net-self-info");
     pingDot = requireElement("net-ping-dot");
     chat = requireElement("net-chat");
     chatLog = requireElement("net-chat-log");
     chatInput = requireElement("net-chat-input");
+    chatEntry = requireElement("net-chat-entry");
+    chatEmojiButton = requireElement("net-chat-emoji");
+    chatEmojis = requireElement("net-chat-emojis");
     chatHint = requireElement("net-chat-hint");
     tags = new Map();
     sendHandler = null;
     idle = 0;
     open = false;
     constructor() {
+        this.chatEmojiButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setHidden(this.chatEmojis, !this.chatEmojis.hidden);
+        });
+        for (const button of this.chatEmojis.querySelectorAll("[data-chat-emoji]")) {
+            button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const code = button.dataset.chatEmoji ?? "";
+                if (CHAT_EMOJIS.has(code))
+                    this.sendHandler?.(`Привет! ${code}`);
+                this.closeChat();
+            });
+        }
         this.chatInput.addEventListener("keydown", (event) => {
             event.stopPropagation();
             if (event.key === "Enter") {
@@ -51,10 +91,11 @@ export class NetHud {
             this.hideAllTags();
         }
     }
-    setSelf(name, color, owner = false, host = false) {
+    setSelf(name, color, owner = false, host = false, skinId = "classic") {
         setText(this.selfName, name);
         this.selfTag.toggleAttribute("data-owner", owner);
         this.selfTag.toggleAttribute("data-host", host);
+        setHidden(this.selfAvatar, skinId !== "ryzik3489");
         this.selfName.style.color = color;
         this.selfTag.style.borderColor = `${color}55`;
     }
@@ -70,7 +111,7 @@ export class NetHud {
             return;
         this.open = true;
         this.chat.dataset.open = "1";
-        setHidden(this.chatInput, false);
+        setHidden(this.chatEntry, false);
         this.idle = 0;
         this.chatInput.focus({ preventScroll: true });
     }
@@ -79,7 +120,8 @@ export class NetHud {
             return;
         this.open = false;
         delete this.chat.dataset.open;
-        setHidden(this.chatInput, true);
+        setHidden(this.chatEntry, true);
+        setHidden(this.chatEmojis, true);
         this.chatInput.blur();
     }
     toggleChat() {
@@ -99,7 +141,7 @@ export class NetHud {
             line.append(who);
         }
         const body = document.createElement("span");
-        body.textContent = text;
+        appendChatContent(body, text);
         line.append(body);
         this.chatLog.append(line);
         while (this.chatLog.childElementCount > 40)
@@ -136,6 +178,7 @@ export class NetHud {
             const label = item.hiding ? `${item.name} 🚪` : item.name;
             view.el.toggleAttribute("data-owner", item.owner);
             view.el.toggleAttribute("data-host", item.host);
+            setHidden(view.avatar, item.skinId !== "ryzik3489");
             if (view.name.textContent !== label) {
                 view.name.textContent = label;
                 view.name.style.color = item.color;
@@ -199,13 +242,17 @@ export class NetHud {
         el.className = "net-tag";
         const name = document.createElement("span");
         name.className = "net-tag__name";
+        const avatar = document.createElement("img");
+        avatar.className = "net-tag__avatar";
+        avatar.src = "./assets/art/skin-ryzik3489.jpg";
+        avatar.alt = "";
         const barWrap = document.createElement("span");
         barWrap.className = "net-tag__bar";
         const bar = document.createElement("i");
         barWrap.append(bar);
-        el.append(name, barWrap);
+        el.append(avatar, name, barWrap);
         this.tagLayer.append(el);
-        const view = { el, name, bar, x: 0, y: 0, fresh: true, shown: false };
+        const view = { el, name, avatar, bar, x: 0, y: 0, fresh: true, shown: false };
         this.tags.set(id, view);
         return view;
     }

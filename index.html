@@ -106,20 +106,23 @@
 			<div id="net-tags" class="net-tags"></div>
 			<div id="net-self" class="net-self">
 				<span id="net-ping-dot" class="net-self__dot" data-q="wait"></span>
+				<img id="net-self-avatar" class="net-self__avatar" src="./assets/art/skin-ryzik3489.jpg" alt="" hidden />
 				<span id="net-self-name" class="net-self__name">Игрок</span>
 				<span id="net-self-info" class="net-self__info">…</span>
 			</div>
 			<div id="net-chat" class="net-chat">
 				<div id="net-chat-log" class="net-chat__log"></div>
-				<input
-					id="net-chat-input"
-					class="net-chat__input"
-					type="text"
-					maxlength="90"
-					placeholder="сообщение команде…"
-					autocomplete="off"
-					hidden
-				/>
+				<div id="net-chat-entry" class="net-chat__entry" hidden>
+					<input id="net-chat-input" class="net-chat__input" type="text" maxlength="90" placeholder="сообщение команде…" autocomplete="off" />
+					<button id="net-chat-emoji" class="net-chat__emoji-toggle" type="button" title="Смайлики" aria-label="Открыть смайлики"><img src="./assets/ui/emoji-smile.svg" alt="" /></button>
+				</div>
+				<div id="net-chat-emojis" class="net-chat__emojis" hidden aria-label="Быстрые приветствия">
+					<button type="button" data-chat-emoji=":hello-smile:" title="Привет — улыбка"><img src="./assets/ui/emoji-smile.svg" alt="Улыбка" /></button>
+					<button type="button" data-chat-emoji=":hello-laugh:" title="Привет — смех"><img src="./assets/ui/emoji-laugh.svg" alt="Смех" /></button>
+					<button type="button" data-chat-emoji=":hello-wink:" title="Привет — подмигивание"><img src="./assets/ui/emoji-wink.svg" alt="Подмигивание" /></button>
+					<button type="button" data-chat-emoji=":hello-cool:" title="Привет — круто"><img src="./assets/ui/emoji-cool.svg" alt="Круто" /></button>
+					<button type="button" data-chat-emoji=":hello-heart:" title="Привет — сердечки"><img src="./assets/ui/emoji-heart.svg" alt="Сердечки" /></button>
+				</div>
 				<div id="net-chat-hint" class="net-chat__hint" hidden>T — чат</div>
 			</div>
 		</div>

@@ -355,6 +355,7 @@ async function boot(): Promise<void> {
 				onlineSkinFor(me?.skin ?? 0, me?.index ?? 0).tag,
 				session.owner,
 				match.host === session.id,
+				me?.skin === 1 ? "ryzik3489" : "classic",
 			)
 			netHud.setVisible(true)
 			netHud.addMessage(

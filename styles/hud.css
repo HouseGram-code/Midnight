@@ -528,13 +528,30 @@
 }
 
 .net-tag__name {
-	display: block;
+	display: inline-block;
 	font-size: 13px;
 	line-height: 1.15;
 	font-weight: 600;
 	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 	white-space: nowrap;
 }
+
+.net-tag__avatar,
+.net-self__avatar {
+	margin-right: 6px;
+	border: 1px solid rgba(255, 179, 112, 0.7);
+	border-radius: 7px;
+	object-fit: cover;
+	object-position: 50% 28%;
+	vertical-align: middle;
+	box-shadow: 0 0 10px rgba(243, 160, 94, 0.28);
+}
+
+.net-tag__avatar { width: 36px; height: 36px; }
+.net-self__avatar { width: 26px; height: 26px; }
+
+.net-tag__avatar[hidden],
+.net-self__avatar[hidden] { display: none; }
 
 .net-tag[data-owner] {
 	border-color: rgba(255, 209, 92, 0.48);
@@ -677,6 +694,7 @@
 	padding: 3px 8px;
 	border-radius: 7px;
 	background: rgba(6, 8, 12, 0.55);
+	color: #e9eef6;
 	font-size: 13px;
 	line-height: 1.35;
 	word-break: break-word;
@@ -700,9 +718,19 @@
 	}
 }
 
-.net-chat__input {
+.net-chat__entry {
+	display: flex;
+	align-items: center;
+	gap: 7px;
 	margin-top: 6px;
-	width: 100%;
+	pointer-events: auto;
+}
+
+.net-chat__entry[hidden] { display: none; }
+
+.net-chat__input {
+	min-width: 0;
+	flex: 1;
 	padding: 7px 10px;
 	border-radius: 9px;
 	border: 1px solid rgba(150, 210, 255, 0.4);
@@ -713,6 +741,44 @@
 	outline: none;
 	pointer-events: auto;
 }
+
+.net-chat__emoji-toggle,
+.net-chat__emojis button {
+	display: grid;
+	place-items: center;
+	padding: 0;
+	border: 1px solid rgba(150, 210, 255, 0.34);
+	background: rgba(9, 15, 24, 0.94);
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+.net-chat__emoji-toggle {
+	width: 38px;
+	height: 38px;
+	border-radius: 10px;
+}
+
+.net-chat__emoji-toggle img { width: 27px; height: 27px; }
+
+.net-chat__emojis {
+	display: flex;
+	gap: 6px;
+	width: max-content;
+	margin-top: 7px;
+	padding: 7px;
+	border: 1px solid rgba(150, 210, 255, 0.25);
+	border-radius: 12px;
+	background: rgba(6, 8, 12, 0.94);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+	pointer-events: auto;
+}
+
+.net-chat__emojis[hidden] { display: none; }
+.net-chat__emojis button { width: 42px; height: 42px; border-radius: 10px; transition: transform .15s ease, border-color .15s ease; }
+.net-chat__emojis button:hover { transform: translateY(-2px); border-color: rgba(255, 211, 115, 0.7); }
+.net-chat__emojis img { width: 33px; height: 33px; }
+.net-chat__drawn-emoji { width: 25px; height: 25px; margin-left: 4px; vertical-align: -7px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
 
 .net-chat__hint {
 	margin-top: 6px;
