@@ -30,6 +30,8 @@ export class OnlineSession {
     name;
     phase = "idle";
     match = null;
+    /** Выбранная в панели сложность. */
+    difficulty = "normal";
     room = null;
     lobby = null;
     searchStart = 0;
@@ -173,6 +175,10 @@ export class OnlineSession {
             return;
         this.evaluate(elapsed);
     }
+    /** Сложность, которую разошлём всем, если мы хост. */
+    setDifficulty(value) { this.difficulty = value; }
+    /** Сложность текущего матча. */
+    get matchDifficulty() { return this.match?.difficulty ?? this.difficulty; }
     startCodeMatch() {
         if (!this.isCodeHost || this.phase !== "searching")
             return false;
@@ -184,6 +190,7 @@ export class OnlineSession {
             host: this.id,
             players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
             startIn: 3200,
+            difficulty: this.difficulty,
         };
         this.lobby?.send("match", info);
         return true;
@@ -210,6 +217,7 @@ export class OnlineSession {
             host: this.id,
             players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
             startIn: 3200,
+            difficulty: this.difficulty,
         };
         this.lobby?.send("match", info);
     }
@@ -238,6 +246,7 @@ export class OnlineSession {
             host,
             players,
             startIn: typeof payload.startIn === "number" ? payload.startIn : 3200,
+            difficulty: typeof payload.difficulty === "string" ? payload.difficulty : "normal",
         };
         this.match = info;
         this.setPhase("found");

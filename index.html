@@ -221,6 +221,16 @@
 						<input class="setting__range" id="set-brightness" type="range" min="60" max="160" step="5" value="100" />
 						<span class="setting__value" id="set-brightness-value">100%</span>
 					</div>
+					<div class="setting setting--stack">
+						<label class="setting__label" for="set-difficulty">Сложность</label>
+						<select class="setting__select" id="set-difficulty">
+							<option value="ghost">Призрак — её нет в школе</option>
+							<option value="easy">Легкая</option>
+							<option value="normal">Нормальный</option>
+							<option value="hard">Сложный</option>
+						</select>
+						<p class="setting__note" id="set-difficulty-note"></p>
+					</div>
 					<div class="setting setting--switch">
 						<label class="setting__label" for="set-invert">Инвертировать вертикаль</label>
 						<input class="setting__check" id="set-invert" type="checkbox" />
@@ -329,11 +339,22 @@
 						</div>
 					</div>
 
+					<div class="online__block" id="online-difficulty">
+						<span class="online__block-label">Сложность матча</span>
+						<div class="diff-chips">
+							<button class="diff-chip" data-diff="ghost" type="button" aria-pressed="false">Призрак</button>
+							<button class="diff-chip" data-diff="easy" type="button" aria-pressed="false">Легкая</button>
+							<button class="diff-chip" data-diff="normal" type="button" aria-pressed="true">Нормальный</button>
+							<button class="diff-chip" data-diff="hard" type="button" aria-pressed="false">Сложный</button>
+						</div>
+						<p class="online__block-note" id="online-diff-note"></p>
+					</div>
+
 					<div class="online__search" id="online-search" hidden>
 						<div class="online__roster" id="online-roster"></div>
 					</div>
 
-					<div class="menu__row online__actions">
+					<div class="menu__row online__actions online__actions--grid">
 						<button class="button button--primary" id="online-start" type="button">Начать игру онлайн</button>
 						<button class="button button--primary" id="online-room-start" type="button" hidden>Запустить комна��у</button>
 						<button class="button button--ghost" id="online-cancel" type="button" hidden>Отмена</button>

@@ -5,7 +5,8 @@
  * Всё на обычных DOM-событиях — никаких фреймворков.
  */
 import { requireElement, setHidden, setText } from "./dom.js";
-export const GAME_VERSION = "1.0.1-beta";
+import { DIFFICULTY_PRESETS, difficultyOf } from "../game/difficulty.js";
+export const GAME_VERSION = "1.0.2-beta";
 export const QUALITY_LEVELS = ["auto", "low", "medium", "high"];
 const STORAGE_KEY = "school3d.settings.v1";
 const DEFAULT_SETTINGS = {
@@ -15,6 +16,7 @@ const DEFAULT_SETTINGS = {
     invertY: false,
     showFps: false,
     quality: "auto",
+    difficulty: "normal",
 };
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -34,6 +36,7 @@ export function loadSettings() {
             quality: QUALITY_LEVELS.includes(parsed.quality)
                 ? parsed.quality
                 : "auto",
+            difficulty: difficultyOf(parsed.difficulty),
         };
     }
     catch {
@@ -100,6 +103,8 @@ export class Menu {
     invertInput = requireElement("set-invert");
     fpsInput = requireElement("set-fps");
     qualityInput = requireElement("set-quality");
+    difficultyInput = requireElement("set-difficulty");
+    difficultyNote = requireElement("set-difficulty-note");
     sensitivityValue = requireElement("set-sensitivity-value");
     volumeValue = requireElement("set-volume-value");
     brightnessValue = requireElement("set-brightness-value");
@@ -146,6 +151,7 @@ export class Menu {
         this.invertInput.checked = this.settings.invertY;
         this.fpsInput.checked = this.settings.showFps;
         this.qualityInput.value = this.settings.quality;
+        this.difficultyInput.value = this.settings.difficulty;
         this.refreshLabels();
         const onInput = () => {
             this.settings = {
@@ -157,6 +163,7 @@ export class Menu {
                 quality: QUALITY_LEVELS.includes(this.qualityInput.value)
                     ? this.qualityInput.value
                     : "auto",
+                difficulty: difficultyOf(this.difficultyInput.value),
             };
             this.refreshLabels();
             saveSettings(this.settings);
@@ -169,6 +176,7 @@ export class Menu {
             this.invertInput,
             this.fpsInput,
             this.qualityInput,
+            this.difficultyInput,
         ]) {
             input.addEventListener("input", onInput);
             input.addEventListener("change", onInput);
@@ -181,6 +189,7 @@ export class Menu {
             this.invertInput.checked = false;
             this.fpsInput.checked = DEFAULT_SETTINGS.showFps;
             this.qualityInput.value = DEFAULT_SETTINGS.quality;
+            this.difficultyInput.value = DEFAULT_SETTINGS.difficulty;
             this.refreshLabels();
             saveSettings(this.settings);
             this.callbacks.onSettingsChange(this.settings);
@@ -190,6 +199,8 @@ export class Menu {
         requireElement(buttonId).addEventListener("click", () => this.showPanel(panel));
     }
     refreshLabels() {
+        const preset = DIFFICULTY_PRESETS[this.settings.difficulty];
+        setText(this.difficultyNote, `${preset.note} Жизней: ${preset.lives}.`);
         setText(this.sensitivityValue, `${Math.round(this.settings.sensitivity * 100)}%`);
         setText(this.volumeValue, `${Math.round(this.settings.volume * 100)}%`);
         setText(this.brightnessValue, `${Math.round(this.settings.brightness * 100)}%`);

@@ -1432,3 +1432,142 @@ kbd {
 	opacity: 0.55;
 	cursor: not-allowed;
 }
+
+/* ---------- сложность и обновлённый блок онлайна (1.0.2) ---------- */
+
+.setting--stack {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 8px;
+}
+
+.setting--stack .setting__select {
+	width: 100%;
+	min-height: 44px;
+	font-size: 15px;
+}
+
+.setting__note {
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.45;
+	color: rgba(214, 220, 236, 0.62);
+}
+
+/* Общая карточка для групп настроек внутри панели онлайна. */
+.online__block {
+	display: grid;
+	gap: 10px;
+	margin: 12px 0;
+	padding: 12px 14px;
+	border-radius: 14px;
+	border: 1px solid rgba(150, 160, 190, 0.16);
+	background: rgba(10, 12, 18, 0.5);
+}
+
+.online__block-label {
+	font-size: 12px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: rgba(206, 214, 234, 0.6);
+}
+
+.online__block-note {
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.45;
+	color: rgba(214, 220, 236, 0.66);
+}
+
+.diff-chips {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.diff-chip {
+	min-width: 0;
+	min-height: 44px;
+	padding: 10px 14px;
+	border-radius: 12px;
+	border: 1px solid rgba(150, 160, 190, 0.24);
+	background: rgba(16, 18, 26, 0.78);
+	color: #dfe3ee;
+	font: inherit;
+	font-size: 14px;
+	cursor: pointer;
+	transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+
+.diff-chip:hover:not(:disabled) {
+	border-color: rgba(255, 214, 120, 0.5);
+	transform: translateY(-1px);
+}
+
+.diff-chip--active {
+	border-color: rgba(255, 214, 120, 0.85);
+	background: rgba(58, 44, 12, 0.9);
+	color: #fff0c4;
+	font-weight: 600;
+}
+
+.diff-chip:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+/* Кнопки онлайна: ровная сетка вместо рваного ряда. */
+.online__actions--grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 10px;
+}
+
+.online__actions--grid .button {
+	width: 100%;
+	min-height: 46px;
+	font-size: 15px;
+}
+
+/* Легенда клавиш в меню онлайна и настроек. */
+.key-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 10px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 13px;
+	color: rgba(214, 220, 236, 0.72);
+}
+
+.key-legend li {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.key-legend kbd {
+	min-width: 26px;
+	padding: 3px 7px;
+	text-align: center;
+	border-radius: 7px;
+	border: 1px solid rgba(255, 214, 120, 0.35);
+	background: rgba(30, 24, 10, 0.75);
+	color: #ffe8b0;
+	font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (max-width: 720px) {
+	.diff-chips {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.diff-chip {
+		font-size: 13px;
+	}
+
+	.online__actions--grid {
+		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	}
+}

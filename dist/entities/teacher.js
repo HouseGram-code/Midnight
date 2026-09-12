@@ -97,6 +97,15 @@ export class Teacher {
     alert = 0;
     /** Видит ли игрока сейчас. */
     seesPlayer = false;
+    /** Множители сложности: скорость, зрение, реакция, слух. */
+    tuning = { speed: 1, sight: 1, notice: 1, hear: 1 };
+    /** Применить настройки сложности. */
+    setTuning(values) {
+        this.tuning.speed = Math.max(0.2, values.speed);
+        this.tuning.sight = Math.max(0.1, values.sight);
+        this.tuning.notice = Math.max(0.05, values.notice);
+        this.tuning.hear = Math.max(0, values.hear);
+    }
     path = [];
     pathTimer = 0;
     targetX = 17.5;
@@ -239,7 +248,7 @@ export class Teacher {
         const dz = senses.playerZ - this.z;
         const distance = Math.hypot(dx, dz);
         // Включённый фонарь видно гораздо дальше.
-        const sightRange = senses.flashlightOn ? TEACHER.sightRange + 4 : TEACHER.sightRange;
+        const sightRange = (senses.flashlightOn ? TEACHER.sightRange + 4 : TEACHER.sightRange) * this.tuning.sight;
         if (distance > sightRange)
             return false;
         if (senses.playerHidden) {
@@ -265,8 +274,11 @@ export class Teacher {
     canHear(senses) {
         if (senses.playerNoise <= 0.05)
             return false;
+        // На сложности «призрак» она не слышит вообще.
+        if (this.tuning.hear <= 0)
+            return false;
         const distance = this.distanceTo(senses.playerX, senses.playerZ);
-        const range = TEACHER.hearRange * (0.35 + 0.65 * senses.playerNoise);
+        const range = TEACHER.hearRange * (0.35 + 0.65 * senses.playerNoise) * this.tuning.hear;
         // За закрытой стеной звук больше не превращается во всевидение.
         // Через дверной проём луч остаётся свободным и бег всё ещё слышен.
         return distance <= range && this.hasLineOfSight(senses.playerX, senses.playerZ, 1.25);
@@ -646,7 +658,7 @@ export class Teacher {
         else
             this.sightTime = Math.max(0, this.sightTime - dt * 2);
         const locked = this.state === "chase" || this.state === "attack";
-        const sees = inSight && (locked || this.sightTime >= TEACHER.noticeTime);
+        const sees = inSight && (locked || this.sightTime >= TEACHER.noticeTime * this.tuning.notice);
         this.seesPlayer = sees;
         const hears = !sees && this.canHear(senses);
         const distance = this.distanceTo(senses.playerX, senses.playerZ);
@@ -763,7 +775,7 @@ export class Teacher {
                     : rush
                         ? TEACHER.sprintSpeed
                         : TEACHER.chaseSpeed;
-                this.advance(dt, chaseSpeed, events);
+                this.advance(dt, chaseSpeed * this.tuning.speed, events);
                 break;
             }
             case "search": {
@@ -793,7 +805,7 @@ export class Teacher {
                         break;
                     }
                 }
-                this.advance(dt, TEACHER.searchSpeed, events);
+                this.advance(dt, TEACHER.searchSpeed * this.tuning.speed, events);
                 break;
             }
             case "patrol":
@@ -820,7 +832,7 @@ export class Teacher {
                         break;
                     }
                 }
-                this.advance(dt, TEACHER.patrolSpeed, events);
+                this.advance(dt, TEACHER.patrolSpeed * this.tuning.speed, events);
                 // Дошла — короткая пауза с осмотром, дальше сразу новый маршрут.
                 if (this.path.length === 0 && this.waitTimer <= 0) {
                     this.startLook(0.5 + Math.random() * 0.7);

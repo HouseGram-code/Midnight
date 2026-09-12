@@ -1,22 +1,22 @@
 {
-	"name": "midnight-8b",
-	"version": "1.0.1-beta",
-	"private": true,
-	"type": "module",
-	"description": "Полночь в 8-Б — школьный хоррор",
-	"scripts": {
-		"build": "tsc -p .",
-		"vercel-build": "tsc -p . && node tools/vercel-build.mjs",
-		"watch": "tsc -p . --watch",
-		"serve": "node tools/serve.mjs",
-		"start": "npm run build && node tools/serve.mjs",
-		"typecheck": "tsc -p . --noEmit",
-		"clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('dist',{recursive:true,force:true}))\""
-	},
-	"devDependencies": {
-		"typescript": ">=5.6.0"
-	},
-	"engines": {
-		"node": ">=20"
-	}
+  "name": "midnight-8b",
+  "version": "1.0.2-beta",
+  "private": true,
+  "type": "module",
+  "description": "Полночь в 8-Б — школьный хоррор",
+  "scripts": {
+    "build": "tsc -p .",
+    "vercel-build": "tsc -p . && node tools/vercel-build.mjs",
+    "watch": "tsc -p . --watch",
+    "serve": "node tools/serve.mjs",
+    "start": "npm run build && node tools/serve.mjs",
+    "typecheck": "tsc -p . --noEmit",
+    "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('dist',{recursive:true,force:true}))\""
+  },
+  "devDependencies": {
+    "typescript": ">=5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

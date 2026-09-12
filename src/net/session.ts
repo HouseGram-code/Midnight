@@ -45,6 +45,8 @@ export interface MatchInfo {
 	players: MatchPlayer[]
 	/** Через сколько миллисекунд после получения начинать кат-сцену. */
 	startIn: number
+	/** Сложность матча — её задаёт создатель. */
+	difficulty: string
 }
 
 export interface ChatMessage {
@@ -74,6 +76,8 @@ export class OnlineSession {
 	name: string
 	phase: SessionPhase = "idle"
 	match: MatchInfo | null = null
+	/** Выбранная в панели сложность. */
+	private difficulty = "normal"
 	room: NetChannel | null = null
 
 	private lobby: NetChannel | null = null
@@ -229,6 +233,11 @@ export class OnlineSession {
 		this.evaluate(elapsed)
 	}
 
+	/** Сложность, которую разошлём всем, если мы хост. */
+	setDifficulty(value: string): void { this.difficulty = value }
+	/** Сложность текущего матча. */
+	get matchDifficulty(): string { return this.match?.difficulty ?? this.difficulty }
+
 	startCodeMatch(): boolean {
 		if (!this.isCodeHost || this.phase !== "searching") return false
 		const group = this.searchers.slice(0, MAX_PLAYERS)
@@ -238,6 +247,7 @@ export class OnlineSession {
 			host: this.id,
 			players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
 			startIn: 3200,
+			difficulty: this.difficulty,
 		}
 		this.lobby?.send("match", info as unknown as NetPayload)
 		return true
@@ -264,6 +274,7 @@ export class OnlineSession {
 			host: this.id,
 			players: group.map((member, index) => ({ id: member.id, name: member.name, owner: member.owner, index })),
 			startIn: 3200,
+			difficulty: this.difficulty,
 		}
 		this.lobby?.send("match", info as unknown as NetPayload)
 	}
@@ -290,6 +301,7 @@ export class OnlineSession {
 			host,
 			players,
 			startIn: typeof payload.startIn === "number" ? payload.startIn : 3200,
+			difficulty: typeof payload.difficulty === "string" ? payload.difficulty : "normal",
 		}
 		this.match = info
 		this.setPhase("found")

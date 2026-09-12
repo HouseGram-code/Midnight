@@ -6,8 +6,9 @@
  */
 
 import { requireElement, setHidden, setText } from "./dom.js"
+import { DIFFICULTY_PRESETS, difficultyOf, type Difficulty } from "../game/difficulty.js"
 
-export const GAME_VERSION = "1.0.1-beta"
+export const GAME_VERSION = "1.0.2-beta"
 
 export interface GameSettings {
 	/** Чувствительность мыши, множитель 0.3…2.5. */
@@ -22,6 +23,8 @@ export interface GameSettings {
 	showFps: boolean
 	/** Профиль качества картинки. */
 	quality: QualityLevel
+	/** Сложность одиночной игры и стартовая для онлайна. */
+	difficulty: Difficulty
 }
 
 /** Уровни графики: «авто» сам подбирает разрешение под железо. */
@@ -38,6 +41,7 @@ const DEFAULT_SETTINGS: GameSettings = {
 	invertY: false,
 	showFps: false,
 	quality: "auto",
+	difficulty: "normal",
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -58,6 +62,7 @@ export function loadSettings(): GameSettings {
 			quality: QUALITY_LEVELS.includes(parsed.quality as QualityLevel)
 				? (parsed.quality as QualityLevel)
 				: "auto",
+			difficulty: difficultyOf(parsed.difficulty),
 		}
 	} catch {
 		return { ...DEFAULT_SETTINGS }
@@ -131,6 +136,8 @@ export class Menu {
 	private readonly invertInput = requireElement("set-invert") as HTMLInputElement
 	private readonly fpsInput = requireElement("set-fps") as HTMLInputElement
 	private readonly qualityInput = requireElement("set-quality") as HTMLSelectElement
+	private readonly difficultyInput = requireElement("set-difficulty") as HTMLSelectElement
+	private readonly difficultyNote = requireElement("set-difficulty-note")
 	private readonly sensitivityValue = requireElement("set-sensitivity-value")
 	private readonly volumeValue = requireElement("set-volume-value")
 	private readonly brightnessValue = requireElement("set-brightness-value")
@@ -180,6 +187,7 @@ export class Menu {
 		this.invertInput.checked = this.settings.invertY
 		this.fpsInput.checked = this.settings.showFps
 		this.qualityInput.value = this.settings.quality
+		this.difficultyInput.value = this.settings.difficulty
 		this.refreshLabels()
 
 		const onInput = (): void => {
@@ -192,6 +200,7 @@ export class Menu {
 				quality: QUALITY_LEVELS.includes(this.qualityInput.value as QualityLevel)
 					? (this.qualityInput.value as QualityLevel)
 					: "auto",
+				difficulty: difficultyOf(this.difficultyInput.value),
 			}
 			this.refreshLabels()
 			saveSettings(this.settings)
@@ -204,6 +213,7 @@ export class Menu {
 			this.invertInput,
 			this.fpsInput,
 			this.qualityInput,
+			this.difficultyInput,
 		]) {
 			input.addEventListener("input", onInput)
 			input.addEventListener("change", onInput)
@@ -216,6 +226,7 @@ export class Menu {
 			this.invertInput.checked = false
 			this.fpsInput.checked = DEFAULT_SETTINGS.showFps
 			this.qualityInput.value = DEFAULT_SETTINGS.quality
+			this.difficultyInput.value = DEFAULT_SETTINGS.difficulty
 			this.refreshLabels()
 			saveSettings(this.settings)
 			this.callbacks.onSettingsChange(this.settings)
@@ -227,6 +238,8 @@ export class Menu {
 	}
 
 	private refreshLabels(): void {
+		const preset = DIFFICULTY_PRESETS[this.settings.difficulty]
+		setText(this.difficultyNote, `${preset.note} Жизней: ${preset.lives}.`)
 		setText(this.sensitivityValue, `${Math.round(this.settings.sensitivity * 100)}%`)
 		setText(this.volumeValue, `${Math.round(this.settings.volume * 100)}%`)
 		setText(this.brightnessValue, `${Math.round(this.settings.brightness * 100)}%`)

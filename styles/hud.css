@@ -748,3 +748,78 @@
 		font-size: 11px;
 	}
 }
+
+/* ---------- читаемость HUD на ПК и ноутбуках (1.0.2) ---------- */
+
+.objective {
+	font-size: clamp(13px, 1.05vw, 17px);
+	line-height: 1.4;
+	padding: 10px 14px;
+	background: rgba(6, 8, 12, 0.62);
+	border-radius: 12px;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+.prompt__text {
+	font-size: clamp(14px, 1.1vw, 18px);
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+.hand-label,
+.slot {
+	font-size: clamp(13px, 1vw, 16px);
+}
+
+.hold__label {
+	font-size: clamp(12px, 0.95vw, 15px);
+}
+
+/* Инвентарь: клавиши всегда видны, ячейки крупнее и контрастнее. */
+.hotbar {
+	gap: 10px;
+}
+
+.cell {
+	min-width: clamp(68px, 6vw, 88px);
+	padding: 9px 10px;
+	background: rgba(6, 8, 12, 0.66);
+	border-radius: 12px;
+}
+
+.cell__key {
+	font-size: clamp(11px, 0.85vw, 13px);
+	opacity: 1;
+	color: rgba(255, 226, 150, 0.92);
+	font-weight: 700;
+	letter-spacing: 0.06em;
+}
+
+.cell__label {
+	font-size: clamp(12px, 0.9vw, 14px);
+	color: rgba(235, 239, 250, 0.92);
+}
+
+.cell--active {
+	box-shadow: 0 0 0 2px rgba(255, 214, 120, 0.75);
+}
+
+.toast {
+	font-size: clamp(14px, 1.05vw, 17px);
+}
+
+/* Невысокие ноутбучные экраны: поднимаем полосы ближе друг к другу. */
+@media (max-height: 760px) and (min-width: 900px) {
+	.hotbar {
+		bottom: 12px;
+	}
+
+	.item-slots,
+	.hand-label {
+		bottom: 78px;
+	}
+
+	.minimap {
+		width: 280px;
+		height: 181px;
+	}
+}

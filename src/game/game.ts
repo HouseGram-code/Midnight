@@ -29,6 +29,7 @@ import type { AudioManager, SoundName } from "../audio/audio.js"
 import type { GameHud } from "../ui/gameHud.js"
 import { Teacher } from "../entities/teacher.js"
 import { NavGraph } from "./nav.js"
+import { DIFFICULTY_PRESETS, difficultyOf, presetOf, type Difficulty, type DifficultyPreset } from "./difficulty.js"
 import {
 	EXIT_DOOR,
 	FLASHLIGHT_ITEM,
@@ -225,6 +226,10 @@ export class Game {
 	private hideYaw = 0
 	/** Она видела, в какой шкафчик мы залезли — такой шкафчик не спасёт. */
 	private hideSpotted = false
+	/** Выбранная сложность. */
+	difficulty: Difficulty = "normal"
+	private preset: DifficultyPreset = DIFFICULTY_PRESETS.normal
+	private maxLives: number = CONFIG.horror.lives
 	private timeline: Timeline | null = null
 	private teacherWriting = false
 	private writePhase = 0
@@ -241,7 +246,7 @@ export class Game {
 	private classDoorVisible = false
 	private classDoorAngle = 0
 	private classDoorTarget = 0
-	/** До крика учительница — обычный человек без красных глаз и дубины. */
+	/** До кри����а учительница — обычный человек без красных глаз и дубины. */
 	private teacherHuman = false
 
 	/** Онлайн-бета: если связка жива, мир общий на всю команду. */
@@ -349,9 +354,28 @@ export class Game {
 		this.renderer.setDynamicVisible("players", false)
 	}
 
+	/** Сложность: меняет жизни и поведение учительницы. */
+	setDifficulty(value: string): void {
+		this.difficulty = difficultyOf(value)
+		this.preset = presetOf(this.difficulty)
+		this.maxLives = this.preset.lives
+		this.teacher.setTuning(this.preset)
+		if (this.preset.absent) {
+			this.teacher.sleep()
+			this.teacher.visible = false
+			this.teacher.alert = 0
+			this.teacher.seesPlayer = false
+		}
+	}
+
+	/** Название текущей сложности. */
+	get difficultyLabel(): string { return this.preset.short }
+	/** Нет ли учительницы в школе вообще. */
+	get teacherAbsent(): boolean { return this.preset.absent }
+
 	startNewGame(): void {
 		this.collected.clear()
-		this.lives = CONFIG.horror.lives
+		this.lives = this.maxLives
 		this.flashlightOwned = false
 		this.flashlightOn = false
 		this.exitStage = 0
@@ -384,7 +408,7 @@ export class Game {
 		this.teacher.sleep()
 		this.hud.reset()
 		this.hud.setVisible(false)
-		this.hud.setLives(this.lives)
+		this.hud.setLives(this.lives, this.maxLives)
 		this.refreshItemsHud()
 		this.refreshHotbarHud()
 		this.audio.stopAllLoops(0.2)
@@ -413,6 +437,8 @@ export class Game {
 		})
 		this.online = online
 		this.onlineUi = ui
+		// Сложность приходит от создателя матча — одинаковая у всех.
+		this.setDifficulty(match.difficulty)
 		this.startNewGame()
 		return online
 	}
@@ -1035,7 +1061,7 @@ export class Game {
 		this.hud.setSkipHint(null)
 		this.say(null)
 		this.hud.setVisible(true)
-		this.hud.setLives(this.lives)
+		this.hud.setLives(this.lives, this.maxLives)
 		this.refreshItemsHud()
 		this.refreshHotbarHud()
 		this.hud.toast("Дверь кабинета открыта. А школа — нет.", 4.5)
@@ -1223,7 +1249,7 @@ export class Game {
 				duration: 2.8,
 				onEnter: () => {
 					this.audio.play("win", { volume: 0.5 })
-					// Фанфары победы — сразу после выхода из школы.
+					// Фа��фары победы — сразу после выхода из школы.
 					this.audio.play("win_fanfare", { volume: 0.95, delay: 0.12 })
 					this.say("Игра пройдена!")
 					this.fade = 1
@@ -1253,7 +1279,7 @@ export class Game {
 		if (this.state !== "play" && this.state !== "hiding") return
 		if (this.grace > 0) return
 		this.lives -= 1
-		this.hud.setLives(this.lives)
+		this.hud.setLives(this.lives, this.maxLives)
 		this.hud.flashDamage()
 		this.shake = 1
 		// Звук 1: удар учительницы.
@@ -1374,7 +1400,7 @@ export class Game {
 			this.player.pitch,
 			CONFIG.camera.fov + 4,
 		)
-		// Забег окончен, когда в школе никого живого не осталось.
+		// Забег оконч��н, когда в школе никого живого не осталось.
 		if (this.ghostTimer < 2.5) return
 		const online = this.online
 		if (!online || !online.live) {
@@ -1401,7 +1427,7 @@ export class Game {
 		this.teacher.setAnimationSpeed(net.speed, dt)
 	}
 
-	/** Экран поражения: сразу в одиночной игре или после полёта призраком. */
+	/** Экран поражения: сразу в одиночной игре или после ��олёта призраком. */
 	private finishDead(reason?: string): void {
 		this.state = "dead"
 		this.timeline = null
@@ -1765,6 +1791,11 @@ export class Game {
 	}
 
 	private triggerLightsOut(): void {
+		// На сложности «призрак» учительница не просыпается вообще.
+		if (this.preset.absent) {
+			this.teacher.sleep()
+			this.teacher.visible = false
+		}
 		this.lightsOut = true
 		this.online?.sendLightsOut()
 		this.nightTarget = 1
@@ -2104,6 +2135,15 @@ export class Game {
 
 	/** Чувства учительницы: шум зависит от того, как игрок двигается. */
 	private updateTeacher(dt: number): void {
+		if (this.preset.absent) {
+			// Школа пустая: никак��й охоты и преследования.
+			this.teacher.sleep()
+			this.teacher.visible = false
+			this.teacher.alert = 0
+			this.teacher.seesPlayer = false
+			this.teacherTarget = null
+			return
+		}
 		const online = this.online
 		// В онлайне учительницу считает один игрок — тот, кто сейчас за неё
 		// отвечает. Остальные видят сглаженную позу с сети.
@@ -2217,9 +2257,20 @@ export class Game {
 						{ volume: 1, range: 45 },
 					)
 					this.shake = Math.max(this.shake, 0.8)
-					this.hud.toast("Она вас увидела!", 2.6)
+					// Раньше всем писало «Она вас увидела!», даже если заметила другого.
+					const spotted = this.teacherTarget
+					if (this.online && spotted) {
+						this.hud.toast(`Она заметила ${this.online.nameOf(spotted)}!`, 2.6)
+					} else {
+						this.hud.toast("Она вас увидела!", 2.6)
+					}
 				},
 				onLost: () => {
+					const chased = this.teacherTarget
+					if (this.online && chased) {
+						this.hud.toast(`Она потеряла ${this.online.nameOf(chased)}`, 2.6)
+						return
+					}
 					// Потеряла — значит и про шкафчик забыла.
 					this.hideSpotted = false
 					this.hud.toast("Кажется, потеряла...", 2.6)

@@ -5,6 +5,7 @@ import { MAX_PLAYERS, MIN_PLAYERS, OnlineSession, SEARCH_SECONDS } from "../net/
 import type { LobbyMember, MatchInfo } from "../net/session.js"
 import { skinFor } from "../net/remote.js"
 import { requireElement, setHidden, setText } from "./dom.js"
+import { DIFFICULTY_PRESETS, difficultyOf, presetOf, type Difficulty } from "../game/difficulty.js"
 
 const NAME_KEY = "school3d.name.v1"
 const OWNER_KEY = "school3d.owner.v1"
@@ -63,6 +64,11 @@ export class OnlinePanel {
 	private readonly ringLabel = requireElement("online-ring-label")
 	private readonly rosterEl = requireElement("online-roster")
 	private readonly searchBox = requireElement("online-search")
+	private readonly diffNote = requireElement("online-diff-note")
+	private readonly diffChips = Array.from(
+		document.querySelectorAll<HTMLButtonElement>("#online-difficulty [data-diff]"),
+	)
+	private difficulty: Difficulty = "normal"
 	private session: OnlineSession | null = null
 	private client: NetClient | null = null
 	private readonly mock = isMockMode()
@@ -100,10 +106,54 @@ export class OnlinePanel {
 			this.refreshButtons()
 		})
 		this.soloButton.addEventListener("click", () => { this.callbacks.onClick(); this.session?.cancelSearch(); this.callbacks.onSolo() })
+		for (const chip of this.diffChips) {
+			chip.addEventListener("click", () => { this.callbacks.onClick(); this.chooseDifficulty(chip.dataset.diff ?? "normal") })
+		}
+		this.renderDifficulty()
 		requireElement("online-back").addEventListener("click", () => { this.callbacks.onClick(); this.leaveSession(); this.callbacks.onBack() })
 	}
 
 	get isSearching(): boolean { return this.session?.phase === "searching" }
+
+	/** Пришла сложность из настроек игры — используем её как стартовую. */
+	setSoloDifficulty(value: string): void {
+		if (this.session && this.session.phase !== "idle") return
+		this.difficulty = difficultyOf(value)
+		this.session?.setDifficulty(this.difficulty)
+		this.renderDifficulty()
+	}
+
+	private chooseDifficulty(value: string): void {
+		if (this.difficultyLocked) {
+			this.setStatus("Сложность задаёт хост", "Сложность выбирает создатель комнаты.")
+			return
+		}
+		this.difficulty = difficultyOf(value)
+		this.session?.setDifficulty(this.difficulty)
+		this.renderDifficulty()
+	}
+
+	/** В чужой комнате сложность менять нельзя. */
+	private get difficultyLocked(): boolean {
+		return this.mode === "code" && this.activeCode.length > 0 && !this.codeHost
+	}
+
+	private renderDifficulty(): void {
+		const preset = DIFFICULTY_PRESETS[this.difficulty]
+		const locked = this.difficultyLocked
+		for (const chip of this.diffChips) {
+			const active = (chip.dataset.diff ?? "") === this.difficulty
+			chip.classList.toggle("diff-chip--active", active)
+			chip.setAttribute("aria-pressed", String(active))
+			chip.disabled = locked
+		}
+		setText(
+			this.diffNote,
+			locked
+				? "Сложность выбирает создатель комнаты."
+				: `${preset.note} Жизней: ${preset.lives}.`,
+		)
+	}
 	private get profileSaved(): boolean { return this.savedName.length >= 2 && cleanUserName(this.nameInput.value) === this.savedName }
 	private get ownerActive(): boolean { return this.ownerAccess && isOwnerName(this.savedName) }
 	open(): void { setHidden(this.soloButton, true); this.switchMode("random", false); this.startLoop() }
@@ -120,6 +170,7 @@ export class OnlinePanel {
 		this.codeModeButton.setAttribute("aria-selected", String(mode === "code"))
 		setHidden(this.codeBox, mode !== "code"); setHidden(this.startButton, mode !== "random"); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.soloButton, true); setHidden(this.searchBox, true)
 		this.loader.dataset.mode = "idle"; this.rosterEl.replaceChildren()
+		this.renderDifficulty()
 		if (mode === "random") { this.setStatus("Случайная игра", "Введите имя и нажмите «Начать игру онлайн».") }
 		else { this.showCodeSetup(); this.setStatus("Комната по коду", "Создайте комнату или введите код друга.") }
 		if (!this.profileSaved) this.setStatus("Регистрация", "Введите имя и нажмите «Сохранить». Это всё — пароль не нужен.")
@@ -139,7 +190,7 @@ export class OnlinePanel {
 
 	private async ensureRandomSession(): Promise<void> {
 		if (this.mode !== "random") return
-		if (!this.session) { this.client = this.makeClient(); this.session = this.makeSession(this.client) }
+		if (!this.session) { this.client = this.makeClient(); this.session = this.makeSession(this.client); this.session.setDifficulty(this.difficulty) }
 		if (this.session.phase !== "idle") { this.refreshButtons(); return }
 		this.loader.dataset.mode = "connect"
 		if (!(await this.session.enter())) { this.showConnectionError(); return }
@@ -155,7 +206,8 @@ export class OnlinePanel {
 	}
 	private async enterCodeRoom(code: string, asHost: boolean): Promise<void> {
 		this.callbacks.onClick(); this.leaveSession(); this.activeCode = code; this.codeHost = asHost
-		this.client = this.makeClient(); this.session = this.makeSession(this.client); this.loader.dataset.mode = "connect"; this.showCodeCard(code)
+		this.client = this.makeClient(); this.session = this.makeSession(this.client); this.session.setDifficulty(this.difficulty); this.loader.dataset.mode = "connect"; this.showCodeCard(code)
+		this.renderDifficulty()
 		this.setStatus(asHost ? "Создаём комнату…" : "Входим в комнату…", `Код ${code}`)
 		if (!(await this.session.enterCodeRoom(code, asHost))) { this.showConnectionError(); this.showCodeSetup(); return }
 		this.loader.dataset.mode = "search"; setHidden(this.searchBox, false); setHidden(this.cancelButton, false); setHidden(this.roomStartButton, !asHost)
@@ -222,7 +274,10 @@ export class OnlinePanel {
 	}
 	private onMatchFound(info: MatchInfo): void {
 		this.pending = info; this.loader.dataset.mode = "found"; const lag = Math.min(400, Math.round((this.session?.ping ?? 0) / 2)); this.startAt = performance.now() + Math.max(900, info.startIn - lag)
-		this.setStatus("Матч найден!", `Игроков: ${info.players.length}. Заходим в школу…`); this.renderMatchRoster(info); setHidden(this.soloButton, true); setHidden(this.roomStartButton, true); this.refreshButtons()
+		// Сложность у всех одинаковая — её прислал создатель матча.
+		this.difficulty = difficultyOf(info.difficulty)
+		this.renderDifficulty()
+		this.setStatus("Матч найден!", `Игроков: ${info.players.length} · сложность: ${presetOf(info.difficulty).short}. Заходим в школу…`); this.renderMatchRoster(info); setHidden(this.soloButton, true); setHidden(this.roomStartButton, true); this.refreshButtons()
 	}
 	private renderRoster(members: LobbyMember[]): void {
 		if (this.pending) return
@@ -233,7 +288,7 @@ export class OnlinePanel {
 	}
 	private renderMatchRoster(info: MatchInfo): void { this.rosterEl.replaceChildren(); for (const player of info.players) this.rosterEl.append(this.rosterRow(player.name, player.index, player.id === this.session?.id, player.owner)) }
 	private rosterRow(name: string, index: number, self: boolean, owner: boolean): HTMLElement { const row = document.createElement("div"); row.className = `${self ? "online-slot online-slot--me" : "online-slot"}${owner ? " online-slot--owner" : ""}`; const dot = document.createElement("i"); dot.style.background = skinFor(index).tag; const label = document.createElement("span"); label.textContent = self ? `${name} (вы)` : name; row.append(dot); if (owner) { const mark = document.createElement("b"); mark.className = "creator-emblem creator-emblem--small"; mark.title = "Официальный создатель игры"; row.append(mark) } row.append(label); return row }
-	private showCodeSetup(): void { this.activeCode = ""; this.codeHost = false; setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true) }
+	private showCodeSetup(): void { this.activeCode = ""; this.codeHost = false; this.renderDifficulty(); setHidden(this.codeSetup, false); setHidden(this.codeCard, true); setHidden(this.roomStartButton, true); setHidden(this.cancelButton, true); setHidden(this.searchBox, true) }
 	private showCodeCard(code: string): void { setText(this.codeValue, code); setHidden(this.codeSetup, true); setHidden(this.codeCard, false) }
 	private async copyCode(): Promise<void> { if (!this.activeCode) return; try { await navigator.clipboard.writeText(this.activeCode); setText(this.copyCodeButton, "Скопировано"); setTimeout(() => setText(this.copyCodeButton, "Копировать"), 1400) } catch { this.setStatus(`Код комнаты: ${this.activeCode}`, "Выделите код и отправьте его друзьям.") } }
 	private setStatus(title: string, hint: string): void { setText(this.statusEl, title); setText(this.hintEl, hint) }

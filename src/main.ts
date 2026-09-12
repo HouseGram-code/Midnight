@@ -141,6 +141,8 @@ async function boot(): Promise<void> {
 
 	let invertY = false
 	let gameRef: Game | null = null
+	// Панель онлайна создаётся ниже, но сложность ей надо передавать из настроек.
+	let onlinePanelRef: OnlinePanel | null = null
 
 	/**
 	 * Профили качества. На слабых ПК и ноутах самое важное — не рендерить
@@ -198,6 +200,9 @@ async function boot(): Promise<void> {
 		audio.setMasterVolume(settings.volume)
 		menuMusic.setVolume(settings.volume * 0.5)
 		gameRef?.setBrightness(settings.brightness)
+		// Сложность из настроек работает и в одиночной игре, и как стартовая в онлайне.
+		gameRef?.setDifficulty(settings.difficulty)
+		onlinePanelRef?.setSoloDifficulty(settings.difficulty)
 		saveSettings(settings)
 	}
 
@@ -240,7 +245,7 @@ async function boot(): Promise<void> {
 			onDead: (reason?: string) => {
 				input.exitPointerLock()
 				touch.setVisible(false)
-				setText(deathText, reason ?? "Учительница нашла вас. ���кола не отпустила.")
+				setText(deathText, reason ?? "Учительница нашла вас. ���кола не ��тпустила.")
 				setHidden(deathScreen, false)
 			},
 			onWon: () => {
@@ -322,7 +327,7 @@ async function boot(): Promise<void> {
 	}
 
 	// ---- Онлайн-бета: имя → поиск игроков → общий забег с чатом.
-	const onlinePanel = new OnlinePanel({
+	const onlinePanel: OnlinePanel = new OnlinePanel({
 		onClick: () => audio.resume(),
 		onBack: () => menu.showPanel("root"),
 		onSolo: () => {
@@ -367,6 +372,8 @@ async function boot(): Promise<void> {
 		if (!game.online || menu.isVisible || game.paused) return
 		netHud.toggleChat()
 	})
+	onlinePanelRef = onlinePanel
+	onlinePanel.setSoloDifficulty(menu.settings.difficulty)
 	window.addEventListener("beforeunload", () => onlinePanel.dispose())
 
 	requireElement("death-retry").addEventListener("click", () => startGame())
